@@ -20,9 +20,6 @@ class ConfigurationFile:
 
         self.__dataset_name = section['dataset_name']
         self.__data_dir = section['data_dir']
-        self.__train_range = section['train_range']
-        self.__val_range = section['val_range']
-        self.__test_range = section['test_range']
         self.__num_videos = int(section['num_videos'])
 
         if 'mapping_path' in section:
@@ -50,18 +47,6 @@ class ConfigurationFile:
     @property
     def mapping_path(self):
         return self.__mapping_path
-
-    @property
-    def train_range(self):
-        return self.__train_range
-
-    @property
-    def val_range(self):
-        return self.__val_range
-
-    @property
-    def test_range(self):
-        return self.__test_range
     
     @property
     def cnn_model(self):
