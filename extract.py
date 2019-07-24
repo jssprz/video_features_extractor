@@ -107,15 +107,20 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         cnn = cnn_extractor(frame_list)
 
         # Preprocess frames of the video fragments to extract motion features
-        clip_list = np.array([[resize_frame(x, frame_shape[1], frame_shape[2]) for x in clip] for clip in clip_list])
-        clip_list = clip_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        clip_list = torch.from_numpy(clip_list).to(device1)
+        clip_list1 = np.array([[resize_frame(x, 112, 112) for x in clip] for clip in clip_list])
+        clip_list1 = clip_list1.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+        clip_list1 = torch.from_numpy(clip_list1).to(device1)
 
         # Extracting c3d features
-        c3d = c3d_extractor(clip_list)
+        c3d = c3d_extractor(clip_list1)
+
+        # Preprocess frames of the video fragments to extract motion features
+        clip_list2 = np.array([[resize_frame(x, 224, 224) for x in clip] for clip in clip_list])
+        clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+        clip_list2 = torch.from_numpy(clip_list2).to(device1)
 
         # Extracting i3d features of sampled frames first
-        i3d = i3d_extractor(clip_list)[1]
+        i3d = i3d_extractor(clip_list2)[1]
 
         cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
         c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
