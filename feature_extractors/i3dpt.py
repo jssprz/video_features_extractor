@@ -235,7 +235,7 @@ class I3D(torch.nn.Module):
             use_bn=False)
         self.softmax = torch.nn.Softmax(1)
 
-        self.feature_size = 1024
+        self.feature_size = 400
 
     def forward(self, inp):
         # Preprocessing

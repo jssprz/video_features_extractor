@@ -24,7 +24,7 @@ __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
 
 
-def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, frame_shape, config, device1, device2):
+def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, frame_shape, config, device1, device2, device3):
     """
 
     :type c3d_extractor:
@@ -117,7 +117,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Preprocess frames of the video fragments to extract motion features
         clip_list2 = np.array([[resize_frame(x, 224, 224) for x in clip] for clip in clip_list])
         clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        clip_list2 = torch.from_numpy(clip_list2).to(device1)
+        clip_list2 = torch.from_numpy(clip_list2).to(device3)
 
         # Extracting i3d features of sampled frames first
         i3d = i3d_extractor(clip_list2)[1]
@@ -154,6 +154,7 @@ if __name__ == '__main__':
         freer_gpu_ids = get_freer_gpu()
         device1 = torch.device('cuda:{}'.format(freer_gpu_ids[0]))
         device2 = torch.device('cuda:{}'.format(freer_gpu_ids[1]))
+        device3 = torch.device('cuda:{}'.format(freer_gpu_ids[2]))
         torch.cuda.empty_cache()
         print('Running on cuda: {} devices sort'.format(freer_gpu_ids))
     else:
@@ -172,8 +173,8 @@ if __name__ == '__main__':
 
     cnn_extractor.to(device2)
     c3d_extractor.to(device1)
-    i3d_rgb_extractor.to(device1)
+    i3d_rgb_extractor.to(device3)
 
     frame_shape = (config.frame_shape_channels, config.frame_shape_height, config.frame_shape_width)
 
-    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device1, device2)
+    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device1, device2, device3)
