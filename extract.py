@@ -24,7 +24,7 @@ __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
 
 
-def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, frame_shape, config, device):
+def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, frame_shape, config, device1, device2):
     """
 
     :type c3d_extractor:
@@ -96,7 +96,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Preprocess frames and then convert it into (batch, channel, height, width) format
         frame_list = np.array([preprocess_frame(x, frame_shape[1], frame_shape[2]) for x in frame_list])
         frame_list = frame_list.transpose((0, 3, 1, 2))
-        frame_list = torch.from_numpy(frame_list).to(device)
+        frame_list = torch.from_numpy(frame_list).to(device2)
 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
         cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size), dtype='float32')
@@ -109,7 +109,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Preprocess frames of the video fragments to extract motion features
         clip_list = np.array([[resize_frame(x, frame_shape[1], frame_shape[2]) for x in clip] for clip in clip_list])
         clip_list = clip_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        clip_list = torch.from_numpy(clip_list).to(device)
+        clip_list = torch.from_numpy(clip_list).to(device1)
 
         # Extracting c3d features
         c3d = c3d_extractor(clip_list)
@@ -146,12 +146,13 @@ if __name__ == '__main__':
     config = ConfigurationFile(args.config_file, args.dataset_name)
 
     if torch.cuda.is_available():
-        freer_gpu_id = get_freer_gpu()
-        device = torch.device('cuda:{}'.format(freer_gpu_id))
+        freer_gpu_ids = get_freer_gpu()
+        device1 = torch.device('cuda:{}'.format(freer_gpu_ids[0]))
+        device2 = torch.device('cuda:{}'.format(freer_gpu_ids[1]))
         torch.cuda.empty_cache()
-        print('Running on cuda:{} device'.format(freer_gpu_id))
+        print('Running on cuda: {} devices sort'.format(freer_gpu_ids))
     else:
-        device = torch.device('cpu')
+        device1 = device2 = torch.device('cpu')
         print('Running on cpu device')
 
     cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path)
@@ -164,10 +165,10 @@ if __name__ == '__main__':
 
     i3d_rgb_extractor.load_state_dict(torch.load(config.i3d_pretrained_path))
 
-    cnn_extractor.to(device)
-    c3d_extractor.to(device)
-    i3d_rgb_extractor.to(device)
+    cnn_extractor.to(device2)
+    c3d_extractor.to(device1)
+    i3d_rgb_extractor.to(device1)
 
     frame_shape = (config.frame_shape_channels, config.frame_shape_height, config.frame_shape_width)
 
-    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device)
+    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device1, device2)
