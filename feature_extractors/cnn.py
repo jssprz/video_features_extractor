@@ -32,12 +32,10 @@ class AppearanceEncoder(nn.Module):
 
         # self.extractor.load_state_dict(torch.load(extractor_model_path))
 
+        self.feature_size = self.extractor.fc.in_features
+
         # remove the last fully connected layer
         del self.extractor.fc
-
-    @property
-    def feature_size(self):
-        return self.extractor.fc.in_features
 
     def forward(self, x):
         x = self.extractor.conv1(x)

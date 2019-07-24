@@ -235,6 +235,8 @@ class I3D(torch.nn.Module):
             use_bn=False)
         self.softmax = torch.nn.Softmax(1)
 
+        self.feature_size = 1024
+
     def forward(self, inp):
         # Preprocessing
         out = self.conv3d_1a_7x7(inp)
@@ -309,10 +311,6 @@ class I3D(torch.nn.Module):
             bias=True,
             bn=False)
         self.load_state_dict(state_dict)
-
-    @property
-    def feature_size(self):
-        return 1024
 
 
 def get_conv_params(sess, name, bias=False):

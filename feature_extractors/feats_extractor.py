@@ -18,7 +18,7 @@ __status__ = "Development"
 class MotionEncoder(nn.Module):
     """
     """
-    def __init__(self, extractor_name, extractor_path, use_pretrained=True):
+    def __init__(self, extractor_name, extractor_path):
         super(MotionEncoder, self).__init__()
         if extractor_name == 'c3d':
             self.extractor = C3D()
@@ -28,9 +28,7 @@ class MotionEncoder(nn.Module):
             model_dict.update(pretrained_dict)
             self.extractor.load_state_dict(model_dict)
 
-    @property
-    def feature_size(self):
-        return self.extractor.fc7.in_features
+        self.feature_size = self.extractor.fc7.in_features
 
     def forward(self, x):
         return self.extractor(x)
