@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    assert args.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT']
+    assert args.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT', 'TRECVID']
 
     config = ConfigurationFile(args.config_file, args.dataset_name)
 
