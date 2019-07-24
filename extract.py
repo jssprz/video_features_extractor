@@ -9,13 +9,13 @@ import h5py
 import numpy as np
 import torch
 
-from .utils import get_freer_gpu
-from .preprocess import resize_frame, preprocess_frame
-from .sample_frames import sample_frames
-from .feature_extractors.cnn import AppearanceEncoder
-from .feature_extractors.feats_extractor import MotionEncoder
-from .feature_extractors.i3dpt import I3D
-from .configuration_file import ConfigurationFile
+from utils import get_freer_gpu
+from preprocess import resize_frame, preprocess_frame
+from sample_frames import sample_frames
+from feature_extractors.cnn import AppearanceEncoder
+from feature_extractors.feats_extractor import MotionEncoder
+from feature_extractors.i3dpt import I3D
+from configuration_file import ConfigurationFile
 
 __author__ = "jssprz"
 __version__ = "0.0.1"
