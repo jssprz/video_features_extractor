@@ -69,16 +69,16 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         dataset_cnn = dataset['cnn_feats']
         dataset_c3d = dataset['c3d_features']
         dataset_i3d = dataset['i3d_features']
-        dataset_counts = dataset['i3d_feats']
+        dataset_counts = dataset['count_features']
     else:
         dataset = h5.create_group(dataset_name)
         dataset_cnn = dataset.create_dataset('cnn_feats', (config.num_videos, config.max_frames,
                                                            cnn_extractor.feature_size), dtype='float32')
         dataset_c3d = dataset.create_dataset('c3d_features', (config.num_videos, config.max_frames,
                                                               c3d_extractor.feature_size), dtype='float32')
-        dataset_i3d = dataset.create_dataset('i3d_feats', (config.num_videos, config.max_frames,
+        dataset_i3d = dataset.create_dataset('i3d_features', (config.num_videos, config.max_frames,
                                                            i3d_extractor.feature_size), dtype='float32')
-        dataset_counts = dataset.create_dataset('i3d_feats', (config.num_videos,), dtype='int')
+        dataset_counts = dataset.create_dataset('count_features', (config.num_videos,), dtype='int')
 
     for i, video_path in enumerate(videos):
         if dataset_name == 'MSVD':
