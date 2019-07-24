@@ -170,4 +170,4 @@ if __name__ == '__main__':
 
     frame_shape = (config.frame_shape_channels, config.frame_shape_height, config.frame_shape_width)
 
-    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.ds, frame_shape, config, device)
+    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device)
