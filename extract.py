@@ -4,21 +4,18 @@
 """
 
 import os
-import sys
 import argparse
 import h5py
-from configparser import ConfigParser
 import numpy as np
 import torch
-from torch.autograd import Variable
 
 from .utils import get_freer_gpu
 from .preprocess import resize_frame, preprocess_frame
 from .sample_frames import sample_frames
-
-sys.path.append('video-features-extractor')
-from appearance_features import AppearanceEncoder
-from motion_features import MotionEncoder
+from .feature_extractors.cnn import AppearanceEncoder
+from .feature_extractors.feats_extractor import MotionEncoder
+from .feature_extractors.i3dpt import I3D
+from .configuration_file import ConfigurationFile
 
 __author__ = "jssprz"
 __version__ = "0.0.1"
@@ -27,30 +24,38 @@ __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
 
 
-def extract_features(aencoder, mencoder, dataset_name, params):
+def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, frame_shape, config, device):
     """
 
-    :param aencoder:
-    :param mencoder:
+    :type c3d_extractor:
+    :param device:
+    :param config:
+    :param frame_shape:
+    :param dataset_name:
+    :param cnn_extractor:
+    :param c3d_extractor:
     :param params:
     :return:
     """
 
-    assert os.listdir(params['data_dir']) == params['num_videos'], \
-        'All videos are not stored in {}'.format(params['data_dir'])
-
     # Read the video list and let the videos sort by id in ascending order
     if dataset_name == 'MSVD':
-        videos = sorted(os.listdir(params['data_dir']))
-        map_file = open(params['mapping_path'], 'w')
+        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir))]
+        map_file = open(config.mapping_path, 'w')
     elif dataset_name == 'MSR-VTT':
-        videos = sorted(os.listdir(params['data_dir']), key=lambda x: int(x[5:-4]))
+        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[5:-4]))]
     elif dataset_name == 'M-VAD':
-        videos = sorted(os.listdir(params['data_dir']), key=lambda x: int(x[3:-4]))
+        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[3:-4]))]
+    else:
+        with open(os.path.join(config.data_dir, 'list.txt')) as f:
+            videos = [os.path.join(config.data_dir, path) for path in f.readlines()]
 
-    feature_h5_path = os.path.join(params['data_dir'], 'features/features.h5')
+    features_dir = os.path.join(config.data_dir, 'features')
+    if not os.path.exists(features_dir):
+        os.makedirs(features_dir)
 
     # Create an hdf5 file that saves video features
+    feature_h5_path = os.path.join(features_dir, 'features.h5')
     if os.path.exists(feature_h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.
@@ -61,65 +66,64 @@ def extract_features(aencoder, mencoder, dataset_name, params):
 
     if dataset_name in list(h5.keys()):
         dataset = h5[dataset_name]
-        dataset_afeats = dataset['a_feats']
-        dataset_mfeats = dataset['m_feats']
-        #     dataset_cfeats = dataset['c_feats']
-        dataset_counts = dataset['n_feats']
+        dataset_cnn = dataset['cnn_feats']
+        dataset_c3d = dataset['c3d_features']
+        dataset_i3d = dataset['i3d_features']
+        dataset_counts = dataset['i3d_feats']
     else:
         dataset = h5.create_group(dataset_name)
-        dataset_afeats = dataset.create_dataset('a_feats', (params['num_videos'], params['max_frames'],
-                                                            aencoder.feature_size()), dtype='float32')
-        dataset_mfeats = dataset.create_dataset('m_feats', (params['num_videos'], params['max_frames'],
-                                                            mencoder.feature_size()), dtype='float32')
-        # dataset_cfeats = dataset.create_dataset('c_feats', (params['num_videos'], params['max_frames'],
-        #                                                     aencoder.feature_size() + mencoder.feature_size()),
-        #                                         dtype='float32')
-        dataset_counts = dataset.create_dataset('n_feats', (params['num_videos'],), dtype='int')
+        dataset_cnn = dataset.create_dataset('cnn_feats', (config.num_videos, config.max_frames,
+                                                           cnn_extractor.feature_size()), dtype='float32')
+        dataset_c3d = dataset.create_dataset('c3d_features', (config.num_videos, config.max_frames,
+                                                              c3d_extractor.feature_size()), dtype='float32')
+        dataset_i3d = dataset.create_dataset('i3d_feats', (config.num_videos, config.max_frames,
+                                                           i3d_extractor.feature_size()), dtype='float32')
+        dataset_counts = dataset.create_dataset('i3d_feats', (config.num_videos,), dtype='int')
 
-    for i, video in enumerate(videos):
+    for i, video_path in enumerate(videos):
         if dataset_name == 'MSVD':
-            map_nameid = '%s\tvideo%d\n' % (video[:-4], i)
-            map_file.write(map_nameid)
-
-        video_path = os.path.join(params['data_dir'], video)
+            map_name_id = '{}\tvideo{}\n'.format(video_path.split('/')[-1][:-4], i)
+            map_file.write(map_name_id)
 
         # Extract video frames and video tiles
-        frame_list, clip_list, frame_count = sample_frames(video_path, params['max_frames'],
-                                                           params['frame_sample_rate'], params['frame_sample_overlap'])
+        frame_list, clip_list, frame_count = sample_frames(video_path, config.max_frames, config.frame_sample_rate,
+                                                           config.frame_sample_overlap)
         feats_count = len(frame_list)
 
         if i % 100 == 0 or frame_count == 0 or feats_count == 0:
-            print('%d\t%s\t%d\t%d' % (i, video, frame_count, feats_count))
+            print('%d\t%s\t%d\t%d' % (i, video_path.split('/')[-1], frame_count, feats_count))
 
-        # Do the image and then convert it into (batch, channel, height, width) format
+        # Preprocess frames and then convert it into (batch, channel, height, width) format
         frame_list = np.array([preprocess_frame(x, frame_shape[1], frame_shape[2]) for x in frame_list])
         frame_list = frame_list.transpose((0, 3, 1, 2))
-        frame_list = Variable(torch.from_numpy(frame_list), volatile=True).to(device)
+        frame_list = torch.from_numpy(frame_list).to(device)
 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
-        afeats = np.zeros((params['max_frames'], aencoder.feature_size()), dtype='float32')
-        mfeats = np.zeros((params['max_frames'], mencoder.feature_size()), dtype='float32')
-        #     cfeats = np.zeros((max_frames, c_feature_size), dtype='float32')
+        cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size()), dtype='float32')
+        c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size()), dtype='float32')
+        i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size()), dtype='float32')
 
-        # Extracting apparience features of sampled frames first
-        af = aencoder(frame_list)
+        # Extracting cnn features of sampled frames first
+        cnn = cnn_extractor(frame_list)
+
+        # Extracting i3d features of sampled frames first
+        i3d = cnn_extractor(frame_list)
 
         # Preprocess frames of the video fragments to extract motion features
-        clip_list = np.array([[resize_frame(x, 112, 112)
-                               for x in clip] for clip in clip_list])
-        clip_list = clip_list.transpose(0, 4, 1, 2, 3).astype(np.float32)
-        clip_list = Variable(torch.from_numpy(clip_list), volatile=True).to(device)
+        clip_list = np.array([[resize_frame(x, 112, 112) for x in clip] for clip in clip_list])
+        clip_list = clip_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+        clip_list = torch.from_numpy(clip_list).to(device)
 
-        # Extracting motion features
-        mf = mencoder(clip_list)
+        # Extracting c3d features
+        c3d = c3d_extractor(clip_list)
 
-        afeats[:len(frame_list), :] = af.data.cpu().numpy()
-        mfeats[:len(frame_list), :] = mf.data.cpu().numpy()
-        #     cfeats[:len(frame_list), :] = torch.cat([af, mf], dim=1).data.cpu().numpy()
+        cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
+        c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
+        i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
 
-        dataset_afeats[i] = afeats
-        dataset_mfeats[i] = mfeats
-        #     dataset_cfeats[i] = cfeats
+        dataset_cnn[i] = cnn_features
+        dataset_c3d[i] = c3d_features
+        dataset_i3d[i] = i3d_features
         dataset_counts[i] = feats_count
 
     h5.close()
@@ -130,18 +134,16 @@ def extract_features(aencoder, mencoder, dataset_name, params):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a captioning model for a specific dataset.')
-    parser.add_argument('-dataset_name', '--ds', type=str, default='MSVD',
+    parser.add_argument('-ds', '--dataset_name', type=str, default='MSVD',
                         help='the name of the dataset (default is MSVD).')
-    parser.add_argument('-config_file', '--config', type=str, required=True,
+    parser.add_argument('-config', '--config_file', type=str, required=True,
                         help='the path to the config file with all params')
 
     args = parser.parse_args()
 
     assert args.ds in ['MSVD', 'M-VAD', 'MSR-VTT']
 
-    config = ConfigParser()
-    config.read(args.config)
-    ds_params = config[args.ds]
+    config = ConfigurationFile(args.config_file, args.dataset_name)
 
     if torch.cuda.is_available():
         freer_gpu_id = get_freer_gpu()
@@ -152,12 +154,20 @@ if __name__ == '__main__':
         device = torch.device('cpu')
         print('Running on cpu device')
 
-    aencoder = AppearanceEncoder(ds_params['appearance_model'], ds_params['appearance_pretrained_path'])
-    aencoder.eval()
-    aencoder.to(device)
+    cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path)
+    c3d_extractor = MotionEncoder('c3d', config.c3d_pretrained_path)
+    i3d_rgb_extractor = I3D(modality='rgb')
 
-    mencoder = MotionEncoder(ds_params['motion_model'], ds_params['motion_pretrained_path'])
-    mencoder.eval()
-    mencoder.to(device)
+    cnn_extractor.eval()
+    c3d_extractor.eval()
+    i3d_rgb_extractor.eval()
 
-    extract_features(aencoder, mencoder, args.ds, ds_params)
+    i3d_rgb_extractor.load_state_dict(torch.load(args.rgb_weights_path))
+
+    cnn_extractor.to(device)
+    c3d_extractor.to(device)
+    i3d_rgb_extractor.to(device)
+
+    frame_shape = (config.frame_shape_channels, config.frame_shape_height, config.frame_shape_width)
+
+    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.ds, frame_shape, config, device)

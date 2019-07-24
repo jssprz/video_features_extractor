@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-"""Defines the MotionEncoder class
-MotionEncoder extracts the motion features from a
+"""Defines the C3D class
+C3D extracts the motion features from a sequence of frames
 """
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -61,24 +60,3 @@ class C3D(nn.Module):
         h = self.dropout(F.relu(self.fc7(h)))
 
         return h
-
-
-class MotionEncoder(nn.Module):
-    """
-    """
-    def __init__(self, extractor_name, extractor_path, use_pretrained=True):
-        super(MotionEncoder, self).__init__()
-        if extractor_name == 'c3d':
-            self.extractor = C3D()
-            pretrained_dict = torch.load(extractor_path)
-            model_dict = self.extractor.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
-            self.extractor.load_state_dict(model_dict)
-
-    @property
-    def feature_size(self):
-        return self.extractor.fc7.in_features
-
-    def forward(self, x):
-        return self.extractor(x)

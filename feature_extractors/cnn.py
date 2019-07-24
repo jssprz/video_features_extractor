@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""
+""" Defines the AppearanceEncoder class that uses for CNN models as extractor
+This model could use pre-trained models
 """
 
 import torch
@@ -29,7 +30,7 @@ class AppearanceEncoder(nn.Module):
         elif extractor_name == 'resnet152':
             self.extractor = models.resnet152(pretrained=use_pretrained)
 
-        self.extractor.load_state_dict(torch.load(extractor_model_path))
+        # self.extractor.load_state_dict(torch.load(extractor_model_path))
 
         # remove the last fully connected layer
         del self.extractor.fc

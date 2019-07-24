@@ -22,7 +22,7 @@ def resize_frame(image, target_height=224, target_width=224):
     :return:
     """
     if len(image.shape) == 2:
-        # Copy a single-channel grayscale image three times into a three-channel image
+        # Copy a single-channel gray-scale image three times into a three-channel image
         image = np.tile(image[:, :, None], 3)
     elif len(image.shape) == 4:
         image = image[:, :, :, 0]
@@ -52,6 +52,7 @@ def preprocess_frame(image, target_height=224, target_width=224):
     image = resize_frame(image, target_height, target_width)
     image = skimage.img_as_float(image).astype(np.float32)
     # Whitening based on the mean (RGB format) of the image on the ILSVRC data set
-    image -= np.array([0.485, 0.456, 0.406])
-    image /= np.array([0.229, 0.224, 0.225])
+    mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+    image -= np.array(mean)
+    image /= np.array(std)
     return image
