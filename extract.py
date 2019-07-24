@@ -107,7 +107,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         cnn = cnn_extractor(frame_list)
 
         # Extracting i3d features of sampled frames first
-        i3d = cnn_extractor(frame_list)
+        i3d = i3d_extractor(frame_list)[1]
 
         # Preprocess frames of the video fragments to extract motion features
         clip_list = np.array([[resize_frame(x, 112, 112) for x in clip] for clip in clip_list])

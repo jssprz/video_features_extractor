@@ -160,12 +160,14 @@ class Mixed(torch.nn.Module):
 
 class I3D(torch.nn.Module):
     def __init__(self,
+                 num_classes,
                  modality='rgb',
                  dropout_prob=0,
                  name='inception'):
         super(I3D, self).__init__()
 
         self.name = name
+        self.num_classes = num_classes
         if modality == 'rgb':
             in_channels = 3
         elif modality == 'flow':
@@ -224,6 +226,14 @@ class I3D(torch.nn.Module):
 
         self.avg_pool = torch.nn.AvgPool3d((2, 7, 7), (1, 1, 1))
         self.dropout = torch.nn.Dropout(dropout_prob)
+        self.conv3d_0c_1x1 = Unit3Dpy(
+            in_channels=1024,
+            out_channels=self.num_classes,
+            kernel_size=(1, 1, 1),
+            activation=None,
+            use_bias=True,
+            use_bn=False)
+        self.softmax = torch.nn.Softmax(1)
 
     def forward(self, inp):
         # Preprocessing
@@ -249,7 +259,10 @@ class I3D(torch.nn.Module):
         out = out.squeeze(3)
         out = out.squeeze(3)
         out = out.mean(2)
-        return out
+        out_logits = out
+        print(out_logits.size())
+        out = self.softmax(out_logits)
+        return out, out_logits
 
     def load_tf_weights(self, sess):
         state_dict = {}
