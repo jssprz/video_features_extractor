@@ -45,6 +45,10 @@ class ConfigurationFile:
         return self.__data_dir
 
     @property
+    def num_videos(self):
+        return self.__num_videos
+
+    @property
     def mapping_path(self):
         return self.__mapping_path
     
