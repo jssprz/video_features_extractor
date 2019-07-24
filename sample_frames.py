@@ -3,6 +3,7 @@
 This function select sequence of frames from a video
 """
 
+import os
 import cv2
 import numpy as np
 
@@ -10,6 +11,8 @@ import numpy as np
 def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overlap):
     """Samples video frames reduces computational effort. Taking max_frames frames at equal intervals
     """
+
+    assert os.path.exists(video_path), 'video path doesn\'t exist'
 
     try:
         cap = cv2.VideoCapture(video_path)
