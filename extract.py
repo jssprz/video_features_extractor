@@ -162,7 +162,7 @@ if __name__ == '__main__':
     c3d_extractor.eval()
     i3d_rgb_extractor.eval()
 
-    i3d_rgb_extractor.load_state_dict(torch.load(args.rgb_weights_path))
+    i3d_rgb_extractor.load_state_dict(torch.load(config.i3d_pretrained_path))
 
     cnn_extractor.to(device)
     c3d_extractor.to(device)
