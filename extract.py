@@ -48,7 +48,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[3:-4]))]
     else:
         with open(os.path.join(config.data_dir, 'list.txt')) as f:
-            videos = [os.path.join(config.data_dir, path) for path in f.readlines()]
+            videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
 
     features_dir = os.path.join(config.data_dir, 'features')
     if not os.path.exists(features_dir):
@@ -77,7 +77,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         dataset_c3d = dataset.create_dataset('c3d_features', (config.num_videos, config.max_frames,
                                                               c3d_extractor.feature_size), dtype='float32')
         dataset_i3d = dataset.create_dataset('i3d_features', (config.num_videos, config.max_frames,
-                                                           i3d_extractor.feature_size), dtype='float32')
+                                                              i3d_extractor.feature_size), dtype='float32')
         dataset_counts = dataset.create_dataset('count_features', (config.num_videos,), dtype='int')
 
     for i, video_path in enumerate(videos):
@@ -106,9 +106,6 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Extracting cnn features of sampled frames first
         cnn = cnn_extractor(frame_list)
 
-        # Extracting i3d features of sampled frames first
-        i3d = i3d_extractor(frame_list)[1]
-
         # Preprocess frames of the video fragments to extract motion features
         clip_list = np.array([[resize_frame(x, 112, 112) for x in clip] for clip in clip_list])
         clip_list = clip_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
@@ -116,6 +113,9 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
 
         # Extracting c3d features
         c3d = c3d_extractor(clip_list)
+
+        # Extracting i3d features of sampled frames first
+        i3d = i3d_extractor(clip_list)[1]
 
         cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
         c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
