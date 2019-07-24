@@ -161,7 +161,7 @@ if __name__ == '__main__':
         device1 = device2 = torch.device('cpu')
         print('Running on cpu device')
 
-    cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path)
+    cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path, True)
     c3d_extractor = MotionEncoder('c3d', config.c3d_pretrained_path)
     i3d_rgb_extractor = I3D(modality='rgb')
 
