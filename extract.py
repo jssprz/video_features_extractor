@@ -73,11 +73,11 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
     else:
         dataset = h5.create_group(dataset_name)
         dataset_cnn = dataset.create_dataset('cnn_feats', (config.num_videos, config.max_frames,
-                                                           cnn_extractor.feature_size()), dtype='float32')
+                                                           cnn_extractor.feature_size), dtype='float32')
         dataset_c3d = dataset.create_dataset('c3d_features', (config.num_videos, config.max_frames,
-                                                              c3d_extractor.feature_size()), dtype='float32')
+                                                              c3d_extractor.feature_size), dtype='float32')
         dataset_i3d = dataset.create_dataset('i3d_feats', (config.num_videos, config.max_frames,
-                                                           i3d_extractor.feature_size()), dtype='float32')
+                                                           i3d_extractor.feature_size), dtype='float32')
         dataset_counts = dataset.create_dataset('i3d_feats', (config.num_videos,), dtype='int')
 
     for i, video_path in enumerate(videos):
@@ -99,9 +99,9 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         frame_list = torch.from_numpy(frame_list).to(device)
 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
-        cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size()), dtype='float32')
-        c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size()), dtype='float32')
-        i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size()), dtype='float32')
+        cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size), dtype='float32')
+        c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size), dtype='float32')
+        i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
 
         # Extracting cnn features of sampled frames first
         cnn = cnn_extractor(frame_list)
