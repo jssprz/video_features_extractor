@@ -160,7 +160,7 @@ class Mixed(torch.nn.Module):
 
 class I3D(torch.nn.Module):
     def __init__(self,
-                 num_classes,
+                 num_classes=400,
                  modality='rgb',
                  dropout_prob=0,
                  name='inception'):
