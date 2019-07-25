@@ -51,12 +51,11 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         with open(os.path.join(config.data_dir, 'list.txt')) as f:
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
 
-    features_dir = os.path.join(config.data_dir, 'features')
-    if not os.path.exists(features_dir):
-        os.makedirs(features_dir)
+    if not os.path.exists(config.features_dir):
+        os.makedirs(config.features_dir)
 
     # Create an hdf5 file that saves video features
-    feature_h5_path = os.path.join(features_dir, 'features.h5')
+    feature_h5_path = os.path.join(config.features_dir, 'features.h5')
     if os.path.exists(feature_h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.

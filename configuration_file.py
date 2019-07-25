@@ -20,6 +20,7 @@ class ConfigurationFile:
 
         self.__dataset_name = section['dataset_name']
         self.__data_dir = section['data_dir']
+        self.__features_dir = section['features_dir']
         self.__num_videos = int(section['num_videos'])
 
         if 'mapping_path' in section:
@@ -43,6 +44,10 @@ class ConfigurationFile:
     @property
     def data_dir(self):
         return self.__data_dir
+
+    @property
+    def features_dir(self):
+        return self.__features_dir
 
     @property
     def num_videos(self):

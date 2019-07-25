@@ -22,10 +22,10 @@ class MotionEncoder(nn.Module):
         super(MotionEncoder, self).__init__()
         if extractor_name == 'c3d':
             self.extractor = C3D()
+
             pretrained_dict = torch.load(extractor_path)
             model_dict = self.extractor.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
+            model_dict.update({k: v for k, v in pretrained_dict.items() if k in model_dict})
             self.extractor.load_state_dict(model_dict)
 
         self.feature_size = self.extractor.fc7.in_features
