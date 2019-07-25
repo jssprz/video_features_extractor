@@ -66,14 +66,14 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
 
     if dataset_name in list(h5.keys()):
         dataset = h5[dataset_name]
-        dataset_cnn = dataset['cnn_feats']
+        dataset_cnn = dataset['cnn_features']
         dataset_c3d = dataset['c3d_features']
         dataset_i3d = dataset['i3d_features']
         dataset_counts = dataset['count_features']
     else:
         dataset = h5.create_group(dataset_name)
-        dataset_cnn = dataset.create_dataset('cnn_feats', (config.num_videos, config.max_frames,
-                                                           cnn_extractor.feature_size), dtype='float32')
+        dataset_cnn = dataset.create_dataset('cnn_features', (config.num_videos, config.max_frames,
+                                                              cnn_extractor.feature_size), dtype='float32')
         dataset_c3d = dataset.create_dataset('c3d_features', (config.num_videos, config.max_frames,
                                                               c3d_extractor.feature_size), dtype='float32')
         dataset_i3d = dataset.create_dataset('i3d_features', (config.num_videos, config.max_frames,
@@ -101,7 +101,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
         cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size), dtype='float32')
         c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size), dtype='float32')
-        i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
+        # i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
 
         # Extracting cnn features of sampled frames first
         cnn = cnn_extractor(frame_list)
@@ -115,20 +115,20 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         c3d = c3d_extractor(clip_list1)
 
         # Preprocess frames of the video fragments to extract motion features
-        clip_list2 = np.array([[resize_frame(x, 196, 196) for x in clip] for clip in clip_list])
-        clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        clip_list2 = torch.from_numpy(clip_list2).to(device3)
+        # clip_list2 = np.array([[resize_frame(x, 196, 196) for x in clip] for clip in clip_list])
+        # clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+        # clip_list2 = torch.from_numpy(clip_list2).to(device3)
 
         # Extracting i3d features of sampled frames first
-        i3d = i3d_extractor(clip_list2)[1]
+        # i3d = i3d_extractor(clip_list2)[1]
 
         cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
         c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
-        i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
+        # i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
 
         dataset_cnn[i] = cnn_features
         dataset_c3d[i] = c3d_features
-        dataset_i3d[i] = i3d_features
+        # dataset_i3d[i] = i3d_features
         dataset_counts[i] = feats_count
 
     h5.close()
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
         print('Running on cuda: {} devices sort'.format(freer_gpu_ids))
     else:
-        device1 = device2 = torch.device('cpu')
+        device1 = device2 = device3 = torch.device('cpu')
         print('Running on cpu device')
 
     cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path, True)
