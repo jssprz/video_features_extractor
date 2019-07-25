@@ -8,6 +8,7 @@ import argparse
 import h5py
 import numpy as np
 import torch
+from torch.autograd import Variable
 
 from utils import get_freer_gpu
 from preprocess import resize_frame, preprocess_frame
@@ -96,12 +97,12 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Preprocess frames and then convert it into (batch, channel, height, width) format
         frame_list = np.array([preprocess_frame(x, frame_shape[1], frame_shape[2]) for x in frame_list])
         frame_list = frame_list.transpose((0, 3, 1, 2))
-        frame_list = torch.from_numpy(frame_list).to(device2)
+        frame_list = Variable(torch.from_numpy(frame_list), volatile=True).to(device2)
 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
         cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size), dtype='float32')
         c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size), dtype='float32')
-        # i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
+        i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
 
         # Extracting cnn features of sampled frames first
         cnn = cnn_extractor(frame_list)
@@ -109,26 +110,26 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Preprocess frames of the video fragments to extract motion features
         clip_list1 = np.array([[resize_frame(x, 112, 112) for x in clip] for clip in clip_list])
         clip_list1 = clip_list1.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        clip_list1 = torch.from_numpy(clip_list1).to(device1)
+        clip_list1 = Variable(torch.from_numpy(clip_list1), volatile=True).to(device1)
 
         # Extracting c3d features
         c3d = c3d_extractor(clip_list1)
 
         # Preprocess frames of the video fragments to extract motion features
-        # clip_list2 = np.array([[resize_frame(x, 196, 196) for x in clip] for clip in clip_list])
-        # clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-        # clip_list2 = torch.from_numpy(clip_list2).to(device3)
+        clip_list2 = np.array([[resize_frame(x, 196, 196) for x in clip] for clip in clip_list])
+        clip_list2 = clip_list2.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+        clip_list2 = Variable(torch.from_numpy(clip_list2), volatile=True).to(device3)
 
         # Extracting i3d features of sampled frames first
-        # i3d = i3d_extractor(clip_list2)[1]
+        i3d = i3d_extractor(clip_list2)[1]
 
         cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
         c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
-        # i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
+        i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
 
         dataset_cnn[i] = cnn_features
         dataset_c3d[i] = c3d_features
-        # dataset_i3d[i] = i3d_features
+        dataset_i3d[i] = i3d_features
         dataset_counts[i] = feats_count
 
     h5.close()
