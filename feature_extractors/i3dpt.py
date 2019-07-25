@@ -262,7 +262,6 @@ class I3D(torch.nn.Module):
         out = out.squeeze(3)
         out = out.mean(2)
         out_logits = out
-        print(out_logits.size())
         out = self.softmax(out_logits)
         return out, out_logits
 

@@ -90,7 +90,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
                                                            config.frame_sample_overlap)
         feats_count = len(frame_list)
 
-        if i % 100 == 0 or frame_count == 0 or feats_count == 0:
+        if i % 50 == 0 or frame_count == 0 or feats_count == 0:
             print('%d\t%s\t%d\t%d' % (i, video_path.split('/')[-1], frame_count, feats_count))
 
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
