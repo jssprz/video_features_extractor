@@ -94,15 +94,15 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         if i % 100 == 0 or frame_count == 0 or feats_count == 0:
             print('%d\t%s\t%d\t%d' % (i, video_path.split('/')[-1], frame_count, feats_count))
 
-        # Preprocess frames and then convert it into (batch, channel, height, width) format
-        frame_list = np.array([preprocess_frame(x, frame_shape[1], frame_shape[2]) for x in frame_list])
-        frame_list = frame_list.transpose((0, 3, 1, 2))
-        frame_list = Variable(torch.from_numpy(frame_list), volatile=True).to(device2)
-
         # If the number of frames is less than max_frames, then the remaining part is complemented by 0
         cnn_features = np.zeros((config.max_frames, cnn_extractor.feature_size), dtype='float32')
         c3d_features = np.zeros((config.max_frames, c3d_extractor.feature_size), dtype='float32')
         i3d_features = np.zeros((config.max_frames, i3d_extractor.feature_size), dtype='float32')
+
+        # Preprocess frames and then convert it into (batch, channel, height, width) format
+        frame_list = np.array([preprocess_frame(x, frame_shape[1], frame_shape[2]) for x in frame_list])
+        frame_list = frame_list.transpose((0, 3, 1, 2))
+        frame_list = Variable(torch.from_numpy(frame_list), volatile=True).to(device2)
 
         # Extracting cnn features of sampled frames first
         cnn = cnn_extractor(frame_list)
@@ -123,9 +123,9 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
         # Extracting i3d features of sampled frames first
         i3d = i3d_extractor(clip_list2)[1]
 
-        cnn_features[:len(frame_list), :] = cnn.data.cpu().numpy()
-        c3d_features[:len(frame_list), :] = c3d.data.cpu().numpy()
-        i3d_features[:len(frame_list), :] = i3d.data.cpu().numpy()
+        cnn_features[:feats_count, :] = cnn.data.cpu().numpy()
+        c3d_features[:feats_count, :] = c3d.data.cpu().numpy()
+        i3d_features[:feats_count, :] = i3d.data.cpu().numpy()
 
         dataset_cnn[i] = cnn_features
         dataset_c3d[i] = c3d_features
@@ -163,19 +163,19 @@ if __name__ == '__main__':
         print('Running on cpu device')
 
     cnn_extractor = AppearanceEncoder(config.cnn_model, config.cnn_pretrained_path, True)
-    c3d_extractor = MotionEncoder('c3d', config.c3d_pretrained_path)
-    i3d_rgb_extractor = I3D(modality='rgb')
-
     cnn_extractor.eval()
-    c3d_extractor.eval()
-    i3d_rgb_extractor.eval()
-
-    i3d_rgb_extractor.load_state_dict(torch.load(config.i3d_pretrained_path))
-
     cnn_extractor.to(device2)
+
+    c3d_extractor = MotionEncoder('c3d', config.c3d_pretrained_path)
+    c3d_extractor.eval()
     c3d_extractor.to(device1)
+
+    i3d_rgb_extractor = I3D(modality='rgb')
+    i3d_rgb_extractor.eval()
+    i3d_rgb_extractor.load_state_dict(torch.load(config.i3d_pretrained_path))
     i3d_rgb_extractor.to(device3)
 
     frame_shape = (config.frame_shape_channels, config.frame_shape_height, config.frame_shape_width)
 
-    extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device1, device2, device3)
+    with torch.no_grad():
+        extract_features(cnn_extractor, c3d_extractor, i3d_rgb_extractor, args.dataset_name, frame_shape, config, device1, device2, device3)
