@@ -46,7 +46,7 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
     elif dataset_name == 'MSR-VTT':
         videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[5:-4]))]
     elif dataset_name == 'M-VAD':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[3:-4]))]
+        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[5:-4]))]
     else:
         with open(os.path.join(config.data_dir, 'list.txt')) as f:
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
