@@ -39,6 +39,9 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
     :return:
     """
 
+    if not os.path.exists(config.features_dir):
+        os.makedirs(config.features_dir)
+
     # Read the video list and let the videos sort by id in ascending order
     if dataset_name == 'MSVD':
         videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir))]
@@ -50,9 +53,6 @@ def extract_features(cnn_extractor, c3d_extractor, i3d_extractor, dataset_name, 
     else:
         with open(os.path.join(config.data_dir, 'list.txt')) as f:
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
-
-    if not os.path.exists(config.features_dir):
-        os.makedirs(config.features_dir)
 
     # Create an hdf5 file that saves video features
     feature_h5_path = os.path.join(config.features_dir, 'features.h5')
