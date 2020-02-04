@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-""" Defines the AppearanceEncoder class that uses for CNN models as extractor
-This model could use pre-trained models
+"""
 """
 
 import torch
@@ -14,9 +13,9 @@ __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
 
 
-class AppearanceEncoder(nn.Module):
-    def __init__(self, extractor_name, extractor_model_path, use_pretrained=False):
-        super(AppearanceEncoder, self).__init__()
+class CNN(nn.Module):
+    def __init__(self, extractor_name, use_pretrained=False):
+        super(CNN, self).__init__()
 
         # initialize the visual feature extractor
         if extractor_name == 'resnet18':
@@ -28,14 +27,22 @@ class AppearanceEncoder(nn.Module):
         elif extractor_name == 'resnet101':
             self.extractor = models.resnet101(pretrained=use_pretrained)
         elif extractor_name == 'resnet152':
-            self.extractor = models.resnet152(pretrained=use_pretrained)
-
-        # self.extractor.load_state_dict(torch.load(extractor_model_path))
-
-        self.feature_size = self.extractor.fc.in_features
+            self.extractor = models.resnet152(pretrained=use_pretrained)     
 
         # remove the last fully connected layer
         del self.extractor.fc
+        
+    def load_pretrained(self, model_weights_path):
+        # self.extractor.load_state_dict(torch.load(model_weights_path))
+        pretrained_dict = torch.load(model_weights_path)
+        model_dict = self.extractor.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        self.extractor.load_state_dict(model_dict)
+        
+    @property
+    def feature_size(self):
+        return self.extractor.fc.in_features
 
     def forward(self, x):
         x = self.extractor.conv1(x)

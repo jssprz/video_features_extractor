@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""Defines the C3D class
-C3D extracts the motion features from a sequence of frames
+"""Defines the MotionEncoder class
+MotionEncoder extracts the motion features from a
 """
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -11,7 +12,6 @@ __version__ = "0.0.1"
 __maintainer__ = "jssprz"
 __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
-
 
 class C3D(nn.Module):
     """C3D model (https://github.com/DavideA/c3d-pytorch/blob/master/C3D_model.py)
@@ -41,6 +41,17 @@ class C3D(nn.Module):
         self.fc7 = nn.Linear(4096, 4096)
 
         self.dropout = nn.Dropout(p=0.5)
+        
+    def load_pretrained(self, model_weights_path):
+        pretrained_dict = torch.load(model_weights_path)
+        model_dict = self.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
+        
+    @property
+    def feature_size(self):
+        return self.extractor.fc7.in_features
 
     def forward(self, x):
         h = self.pool1(F.relu(self.conv1(x)))

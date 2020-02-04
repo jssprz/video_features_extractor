@@ -30,6 +30,7 @@ class ConfigurationFile:
         self.__cnn_pretrained_path = section['cnn_pretrained_path']
         self.__c3d_pretrained_path = section['c3d_pretrained_path']
         self.__i3d_pretrained_path = section['i3d_pretrained_path']
+        self.__tsm_pretrained_path = section['tsm_pretrained_path']
         self.__frame_shape_channels = int(section['frame_shape_channels'])
         self.__frame_shape_height = int(section['frame_shape_height'])
         self.__frame_shape_width = int(section['frame_shape_width'])
@@ -72,6 +73,10 @@ class ConfigurationFile:
     @property
     def i3d_pretrained_path(self):
         return self.__i3d_pretrained_path
+    
+    @property
+    def tsm_pretrained_path(self):
+        return self.__tsm_pretrained_path
     
     @property
     def frame_shape_channels(self):

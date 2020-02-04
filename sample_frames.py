@@ -29,22 +29,24 @@ def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overla
             frame = frame[:, :, ::-1]
             frames.append(frame)
 
-        frames_per_side = frame_sample_rate // 2
-        sample_step = frame_sample_rate - frame_sample_overlap
-        max_index = len(frames) - frames_per_side
-
-        # while max_frames*frame_sample_rate >= frame_count-frame_sample_rate:
-        #   max_frames -= 1
-        # indices = np.linspace(frame_sample_rate, frame_count - frames_per_side, max_frames, endpoint=False, dtype=int)
-
-        indices = []
-        i = frames_per_side
-        while i <= max_index and len(indices) < max_frames:
-            indices.append(i)
-            i += sample_step
-
         frames = np.array(frames)
-        frame_list = frames[indices]
-        clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+            
+        if frame_sample_rate == -1:
+            indices = np.linspace(8, len(frames) - 7, max_frames, endpoint=False, dtype=int)
+            clip_list = [frames[i - 8: i + 8] for i in indices]
+        else:
+            frames_per_side = frame_sample_rate // 2
+            sample_step = frame_sample_rate - frame_sample_overlap
+            max_index = len(frames) - frames_per_side
+            
+            indices = []
+            i = frames_per_side
+            while i <= max_index and len(indices) < max_frames:
+                indices.append(i)
+                i += sample_step
+                
+            clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+        
         clip_list = np.array(clip_list)
+        frame_list = frames[indices]
         return frame_list, clip_list, len(frames)
