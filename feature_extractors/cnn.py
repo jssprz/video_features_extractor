@@ -14,48 +14,65 @@ __status__ = "Development"
 
 
 class CNN(nn.Module):
-    def __init__(self, extractor_name, use_pretrained=False):
+    def __init__(self, extractor_name, extractor_model_path, use_my_resnet=False, use_pretrained=False):
         super(CNN, self).__init__()
 
         # initialize the visual feature extractor
         if extractor_name == 'resnet18':
-            self.extractor = models.resnet18(pretrained=use_pretrained)
+            self.resnet = models.resnet18(pretrained=use_pretrained)
         elif extractor_name == 'resnet34':
-            self.extractor = models.resnet34(pretrained=use_pretrained)
+            self.resnet = models.resnet34(pretrained=use_pretrained)
         elif extractor_name == 'resnet50':
-            self.extractor = models.resnet50(pretrained=use_pretrained)
+            self.resnet = models.resnet50(pretrained=use_pretrained)
         elif extractor_name == 'resnet101':
-            self.extractor = models.resnet101(pretrained=use_pretrained)
+            self.resnet = models.resnet101(pretrained=use_pretrained)
         elif extractor_name == 'resnet152':
-            self.extractor = models.resnet152(pretrained=use_pretrained)     
+            self.resnet = models.resnet152(pretrained=use_pretrained)
+
+        self.use_my_resnet = use_my_resnet
+        if use_my_resnet:
+            self.avg_pool = nn.AdaptiveAvgPool2d((14, 14))
 
         # remove the last fully connected layer
-        del self.extractor.fc
-        
-    def load_pretrained(self, model_weights_path):
-        # self.extractor.load_state_dict(torch.load(model_weights_path))
-        pretrained_dict = torch.load(model_weights_path)
-        model_dict = self.extractor.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        self.extractor.load_state_dict(model_dict)
-        
+        # self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
+
     @property
     def feature_size(self):
-        return self.extractor.fc.in_features
+        return self.resnet.fc.in_features
 
-    def forward(self, x):
-        x = self.extractor.conv1(x)
-        x = self.extractor.bn1(x)
-        x = self.extractor.relu(x)
-        x = self.extractor.maxpool(x)
+    def original_forward(self, x):
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
 
-        x = self.extractor.layer1(x)
-        x = self.extractor.layer2(x)
-        x = self.extractor.layer3(x)
-        x = self.extractor.layer4(x)
+        x = self.resnet.layer1(x)
+        x = self.resnet.layer2(x)
+        x = self.resnet.layer3(x)
+        x = self.resnet.layer4(x)
 
-        x = self.extractor.avgpool(x)
-        x = x.view(x.size(0), -1)
+        x = self.resnet.avgpool(x)
+        x = torch.flatten(x, 1)
 
         return x
+
+    def my_forward(self, x, att_size=14):
+        x = x.unsqueeze(0)
+
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+
+        x = self.resnet.layer1(x)
+        x = self.resnet.layer2(x)
+        x = self.resnet.layer3(x)
+        x = self.resnet.layer4(x)
+
+        fc = x.mean(2).mean(2).squeeze()
+        att = self.avg_pool(x).squeeze().permute(1, 2, 0)
+
+        return fc, att
+
+    def forward(self, x):
+        return self.my_forward(x)[0] if self.use_my_resnet else self.original_forward(x)
