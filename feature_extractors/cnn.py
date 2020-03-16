@@ -14,7 +14,7 @@ __status__ = "Development"
 
 
 class CNN(nn.Module):
-    def __init__(self, extractor_name, extractor_model_path, use_my_resnet=False, use_pretrained=False):
+    def __init__(self, extractor_name, input_size=224, use_my_resnet=False, use_pretrained=False):
         super(CNN, self).__init__()
 
         self.__input_size = input_size
@@ -59,9 +59,25 @@ class CNN(nn.Module):
         # remove the last fully connected layer
         # self.extractor = nn.Sequential(*list(self.extractor.children())[:-1])
 
+    def load_pretrained(self, model_weights_path):
+        # self.extractor.load_state_dict(torch.load(model_weights_path))
+        pretrained_dict = torch.load(model_weights_path)
+        model_dict = self.extractor.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        self.extractor.load_state_dict(model_dict)
+        
+    @property
+    def crop_size(self):
+        return self.__input_size
+    
+    @property
+    def scale_size(self):
+        return self.__input_size * 256 // 224
+        
     @property
     def feature_size(self):
-        return self.extractor.fc.in_features
+        return self.__feature_size
 
     def original_forward(self, x):
         x = self.extractor(x)
