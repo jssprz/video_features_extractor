@@ -17,57 +17,69 @@ class CNN(nn.Module):
     def __init__(self, extractor_name, extractor_model_path, use_my_resnet=False, use_pretrained=False):
         super(CNN, self).__init__()
 
+        self.__input_size = input_size
+        self.__input_mean = [0.485, 0.456, 0.406]
+        self.__input_std = [0.229, 0.224, 0.225]
+
         # initialize the visual feature extractor
         if extractor_name == 'resnet18':
-            self.resnet = models.resnet18(pretrained=use_pretrained)
+            self.extractor = models.resnet18(pretrained=use_pretrained)
         elif extractor_name == 'resnet34':
-            self.resnet = models.resnet34(pretrained=use_pretrained)
+            self.extractor = models.resnet34(pretrained=use_pretrained)
         elif extractor_name == 'resnet50':
-            self.resnet = models.resnet50(pretrained=use_pretrained)
+            self.extractor = models.resnet50(pretrained=use_pretrained)
         elif extractor_name == 'resnet101':
-            self.resnet = models.resnet101(pretrained=use_pretrained)
+            self.extractor = models.resnet101(pretrained=use_pretrained)
         elif extractor_name == 'resnet152':
-            self.resnet = models.resnet152(pretrained=use_pretrained)
+            self.extractor = models.resnet152(pretrained=use_pretrained)
+        elif extractor_name == 'resnext50':
+            self.extractor = models.resnext50_32x4d(retrained=use_pretrained)
+        elif extractor_name == 'resnext101':
+            self.extractor = models.resnext101_32x8d(pretrained=use_pretrained)
+        elif extractor_name == 'resnext101-8d-wsl':
+            self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+        elif extractor_name == 'resnext101-16d-wsl':
+            self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
+        elif extractor_name == 'resnext101-32d-wsl':
+            self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x32d_wsl')
+        elif extractor_name == 'resnext101-48d-wsl':
+            self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x48d_wsl')
+        else:
+            raise ValueError('{} is not a correct extractor name'.format(extractor_name))
+
+        self.__feature_size = self.extractor.fc.in_features
 
         self.use_my_resnet = use_my_resnet
         if use_my_resnet:
             self.avg_pool = nn.AdaptiveAvgPool2d((14, 14))
+        else:
+            modules=list(self.extractor.children())[:-1]
+            self.extractor = nn.Sequential(*modules)
 
         # remove the last fully connected layer
-        # self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
+        # self.extractor = nn.Sequential(*list(self.extractor.children())[:-1])
 
     @property
     def feature_size(self):
-        return self.resnet.fc.in_features
+        return self.extractor.fc.in_features
 
     def original_forward(self, x):
-        x = self.resnet.conv1(x)
-        x = self.resnet.bn1(x)
-        x = self.resnet.relu(x)
-        x = self.resnet.maxpool(x)
-
-        x = self.resnet.layer1(x)
-        x = self.resnet.layer2(x)
-        x = self.resnet.layer3(x)
-        x = self.resnet.layer4(x)
-
-        x = self.resnet.avgpool(x)
+        x = self.extractor(x)
         x = torch.flatten(x, 1)
-
         return x
 
     def my_forward(self, x, att_size=14):
         x = x.unsqueeze(0)
 
-        x = self.resnet.conv1(x)
-        x = self.resnet.bn1(x)
-        x = self.resnet.relu(x)
-        x = self.resnet.maxpool(x)
+        x = self.extractor.conv1(x)
+        x = self.extractor.bn1(x)
+        x = self.extractor.relu(x)
+        x = self.extractor.maxpool(x)
 
-        x = self.resnet.layer1(x)
-        x = self.resnet.layer2(x)
-        x = self.resnet.layer3(x)
-        x = self.resnet.layer4(x)
+        x = self.extractor.layer1(x)
+        x = self.extractor.layer2(x)
+        x = self.extractor.layer3(x)
+        x = self.extractor.layer4(x)
 
         fc = x.mean(2).mean(2).squeeze()
         att = self.avg_pool(x).squeeze().permute(1, 2, 0)
