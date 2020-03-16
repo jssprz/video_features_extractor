@@ -194,9 +194,9 @@ if __name__ == '__main__':
     config = ConfigurationFile(args.config_file, args.dataset_name)
     
     if torch.cuda.is_available():
-        freer_gpu_ids = 3 # get_freer_gpu()[0]
+        freer_gpu_ids = get_freer_gpu()[0]
         device = torch.device('cuda:{}'.format(freer_gpu_ids))
-        print('Running on cuda: {} devices sort'.format(freer_gpu_ids))
+        print('Running on freer device: cuda:{}'.format(freer_gpu_ids))
     else:
         device = torch.device('cpu')
         print('Running on cpu device')
