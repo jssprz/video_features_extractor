@@ -78,6 +78,14 @@ class CNN(nn.Module):
     @property
     def feature_size(self):
         return self.__feature_size
+    
+    @property
+    def input_mean(self):
+        return self.__input_mean
+    
+    @property
+    def input_std(self):
+        return self.__input_std
 
     def original_forward(self, x):
         x = self.extractor(x)
