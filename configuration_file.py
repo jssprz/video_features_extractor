@@ -31,9 +31,6 @@ class ConfigurationFile:
         self.__c3d_pretrained_path = section['c3d_pretrained_path']
         self.__i3d_pretrained_path = section['i3d_pretrained_path']
         self.__tsm_pretrained_path = section['tsm_pretrained_path']
-        self.__frame_shape_channels = int(section['frame_shape_channels'])
-        self.__frame_shape_height = int(section['frame_shape_height'])
-        self.__frame_shape_width = int(section['frame_shape_width'])
         self.__frame_sample_rate = int(section['frame_sample_rate'])
         self.__frame_sample_overlap = int(section['frame_sample_overlap'])
         self.__max_frames = int(section['max_frames'])
@@ -77,18 +74,6 @@ class ConfigurationFile:
     @property
     def tsm_pretrained_path(self):
         return self.__tsm_pretrained_path
-    
-    @property
-    def frame_shape_channels(self):
-        return self.__frame_shape_channels
-
-    @property
-    def frame_shape_height(self):
-        return self.__frame_shape_height
-
-    @property
-    def frame_shape_width(self):
-        return self.__frame_shape_width
 
     @property
     def frame_sample_rate(self):

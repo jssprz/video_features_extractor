@@ -87,9 +87,9 @@ class ECO(nn.Module):
         # exit()
 
         # "self._op_list[-1][2]" represents: last layer's name(e.g. fc_action)
-#         return data_dict[self._op_list[-1][2]]
+        return data_dict[self._op_list[-1][2]], data_dict['global_pool'].view(-1,512)
 
 #         for k,v in data_dict.items():
 #             if 'pool' in k:
 #                 print(k, v.size())
-        return data_dict['global_pool'].view(-1,512)
+#         return data_dict['global_pool'].view(-1,512)

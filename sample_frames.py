@@ -6,6 +6,7 @@ This function select sequence of frames from a video
 import os
 import cv2
 import numpy as np
+from PIL import Image
 
 
 def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overlap):
@@ -28,31 +29,40 @@ def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overla
                 break
             # Convert the BGR image into an RGB image, because the later model uses the RGB format.
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = Image.fromarray(frame)
 #             if i % 2 == 0:
             frames.append(frame)
             i += 1
 
-        frames = np.array(frames)
+#         frames = np.array(frames)
         
         frames_per_side = frame_sample_rate // 2
-        if frame_sample_rate == -1:
+        if frame_sample_rate * max_frames < len(frames):
             indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
-            clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
         else:
-            frames_per_side = frame_sample_rate // 2
-            sample_step = frame_sample_rate - frame_sample_overlap
-            max_index = len(frames) - frames_per_side
-            
-            indices = []
-            i = frames_per_side
-            while i <= max_index and len(indices) < max_frames:
-                indices.append(i)
-                i += sample_step
-                
-            clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+            indices = list(range(frames_per_side, len(frames) - frames_per_side, frame_sample_rate))
+        clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+        frame_list = [frames[i] for i in indices]
         
-        clip_list = np.array(clip_list)
-        frame_list = frames[indices]
+#         if frame_sample_rate == -1:
+#             indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
+#             clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+#         else:
+#             frames_per_side = frame_sample_rate // 2
+#             sample_step = frame_sample_rate - frame_sample_overlap
+#             max_index = len(frames) - frames_per_side
+            
+#             indices = []
+#             i = frames_per_side
+#             while i <= max_index and len(indices) < max_frames:
+#                 indices.append(i)
+#                 i += sample_step
+                
+#             clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+        
+#         clip_list = np.array(clip_list)
+#         frame_list = frames[indices]
+#         frame_list = [frames[i] for i in indices]
         return frame_list, clip_list, len(frames)
     
 def sample_frames2(video_path, num_segments, segment_length):

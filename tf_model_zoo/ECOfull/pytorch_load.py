@@ -89,5 +89,4 @@ class ECOfull(nn.Module):
 
         # "self._op_list[-1][2]" represents: last layer's name(e.g. fc_action)
 #         print(data_dict.keys())
-#         return data_dict[self._op_list[-1][2]]
-        return data_dict['global_pool'].view(-1, 1536)
+        return data_dict[self._op_list[-1][2]], data_dict['global_pool'].view(-1, 1536)

@@ -7,6 +7,7 @@ import skimage
 import numpy as np
 import cv2
 import torchvision
+import torchvision.transforms as transforms
 
 __author__ = "jssprz"
 __version__ = "0.0.1"
@@ -67,16 +68,13 @@ def crop_center(img, cropx, cropy):
     starty = y // 2 - (cropy // 2)
     return img[starty:starty+cropy, startx:startx+cropx, :]
 
-def preprocess_frame(image, scale_size=256, crop_size=224, mean=[.485, .456, .406], std=[.229, .224, .225]):
-    """
-
-    :param image:
-    :param target_height:
-    :param target_width:
-    :return:
-    """
+def preprocess_frame(image, scale_size=256, crop_size=224, mean=[.485, .456, .406], std=[.229, .224, .225], normalize_input=False):
+    image = np.asarray(image)
+    if normalize_input:
+        image *= (255.0/image.max().as_array(np.float32))
     image = scale_frame(image, scale_size, scale_size)
     image = crop_center(image, crop_size, crop_size).astype(np.float32)
     image -= np.array(mean).astype(np.float32)
     image /= np.array(std).astype(np.float32)
     return image
+    

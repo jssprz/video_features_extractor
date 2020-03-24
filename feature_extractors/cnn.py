@@ -21,6 +21,9 @@ class CNN(nn.Module):
         self.__input_mean = [0.485, 0.456, 0.406]
         self.__input_std = [0.229, 0.224, 0.225]
 
+        self.__input_mean = [0]
+        self.__input_std = [1]
+
         # initialize the visual feature extractor
         if extractor_name == 'resnet18':
             self.extractor = models.resnet18(pretrained=use_pretrained)
@@ -90,6 +93,18 @@ class CNN(nn.Module):
     def original_forward(self, x):
         x = self.extractor(x)
         x = torch.flatten(x, 1)
+#         x = self.extractor.conv1(x)
+#         x = self.extractor.bn1(x)
+#         x = self.extractor.relu(x)
+#         x = self.extractor.maxpool(x)
+
+#         x = self.extractor.layer1(x)
+#         x = self.extractor.layer2(x)
+#         x = self.extractor.layer3(x)
+#         x = self.extractor.layer4(x)
+
+#         x = self.extractor.avgpool(x)
+#         x = torch.flatten(x, 1)
         return x
 
     def my_forward(self, x, att_size=14):

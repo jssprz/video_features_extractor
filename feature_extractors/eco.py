@@ -23,11 +23,8 @@ from feature_extractors.ops.transforms import *
 from feature_extractors.ops.basic_ops import ConsensusModule, Identity
 
 class TSN(nn.Module):
-    def __init__(self, num_class, num_segments, pretrained_parts, modality,
-                 base_model='resnet101', new_length=None,
-                 consensus_type='avg', before_softmax=True,
-                 dropout=0.8,
-                 crop_num=1, partial_bn=True):
+    def __init__(self, num_class, num_segments, pretrained_parts, modality, base_model='resnet101', new_length=None,
+                 consensus_type='avg', before_softmax=True, dropout=0.8, crop_num=1, partial_bn=True, get_global_pool=False):
         super(TSN, self).__init__()
         self.modality = modality
         self.num_segments = num_segments
@@ -38,6 +35,7 @@ class TSN(nn.Module):
         self.crop_num = crop_num
         self.consensus_type = consensus_type
         self.base_model_name = base_model
+        self.get_global_pool = get_global_pool
         if not before_softmax and consensus_type != 'avg':
             raise ValueError("Only avg consensus can be used after Softmax")
 
@@ -367,10 +365,11 @@ TSN Configurations:
             input_var = input.view((-1, sample_len) + input.size()[-2:])
             
 #         print(input_var.size(), input.mean())
-        base_out = self.base_model(input_var)
+        base_out, global_pool = self.base_model(input_var)
 #         print(base_out.size(), base_out.mean())
         
-        
+        if self.get_global_pool:
+            base_out = global_pool
 
         # zc comments
         if self.dropout > 0:
@@ -663,7 +662,7 @@ def init_C3DRes18(model_dict, pretrained_parts):
     return new_state_dict
 
 
-def init_model(num_class, num_segments, pretrained_parts, modality, arch, consensus_type, dropout, no_partialbn, resume_chpt, gpus):
+def init_model(num_class, num_segments, pretrained_parts, modality, arch, consensus_type, dropout, no_partialbn, resume_chpt, get_global_pool, gpus):
 #     global args, best_prec1
 #     args = parser.parse_args()
 
@@ -696,7 +695,7 @@ def init_model(num_class, num_segments, pretrained_parts, modality, arch, consen
 #         raise ValueError('Unknown dataset '+args.dataset)
 
     model = TSN(num_class, num_segments, pretrained_parts, modality, base_model=arch,
-                consensus_type=consensus_type, dropout=dropout, partial_bn=not no_partialbn)
+                consensus_type=consensus_type, dropout=dropout, partial_bn=not no_partialbn, get_global_pool=get_global_pool)
 
     crop_size = model.crop_size
     scale_size = model.scale_size

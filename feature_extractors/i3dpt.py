@@ -163,8 +163,13 @@ class I3D(torch.nn.Module):
                  num_classes=400,
                  modality='rgb',
                  dropout_prob=0,
-                 name='inception'):
+                 name='inception',
+                 input_size=196):
         super(I3D, self).__init__()
+        
+        self.__input_size = input_size
+        self.__input_mean = [104, 117, 128]
+        self.__input_std = [1]
 
         self.name = name
         self.num_classes = num_classes
@@ -235,7 +240,27 @@ class I3D(torch.nn.Module):
             use_bn=False)
         self.softmax = torch.nn.Softmax(1)
 
-        self.feature_size = 400
+        self.__feature_size = 400
+        
+    @property
+    def crop_size(self):
+        return self.__input_size
+    
+    @property
+    def scale_size(self):
+        return self.__input_size * 256 // 224
+        
+    @property
+    def feature_size(self):
+        return self.__feature_size
+    
+    @property
+    def input_mean(self):
+        return self.__input_mean
+    
+    @property
+    def input_std(self):
+        return self.__input_std
 
     def forward(self, inp):
         # Preprocessing

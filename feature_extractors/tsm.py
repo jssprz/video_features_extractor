@@ -2,22 +2,20 @@
 # arXiv:1811.08383
 # Ji Lin*, Chuang Gan, Song Han
 # {jilin, songhan}@mit.edu, ganchuang@csail.mit.edu
+import os
+
+from feature_extractors.ops.basic_ops import ConsensusModule
+from feature_extractors.ops.transforms import *
 
 from torch import nn
-
-from feature_extractors.utils import ConsensusModule
-from feature_extractors.transforms import *
 from torch.nn.init import normal_, constant_
 
 
 class TSN(nn.Module):
-    def __init__(self, num_class, num_segments, modality,
-                 base_model='resnet101', new_length=None,
-                 consensus_type='avg', before_softmax=True,
-                 dropout=0.8, img_feature_dim=256,
-                 crop_num=1, partial_bn=True, print_spec=True, pretrain='imagenet',
-                 is_shift=False, shift_div=8, shift_place='blockres', fc_lr5=False,
-                 temporal_pool=False, non_local=False):
+    def __init__(self, num_class, num_segments, modality, base_model='resnet101', new_length=None, consensus_type='avg', 
+                 before_softmax=True, dropout=0.8, img_feature_dim=256, crop_num=1, partial_bn=True, print_spec=True, pretrain='imagenet',
+                 is_shift=False, shift_div=8, shift_place='blockres', fc_lr5=False, temporal_pool=False, non_local=False, 
+                 get_global_pool=False):
         super(TSN, self).__init__()
         self.modality = modality
         self.num_segments = num_segments
@@ -36,6 +34,7 @@ class TSN(nn.Module):
         self.fc_lr5 = fc_lr5
         self.temporal_pool = temporal_pool
         self.non_local = non_local
+        self.get_global_pool = get_global_pool
 
         if not before_softmax and consensus_type != 'avg':
             raise ValueError("Only avg consensus can be used after Softmax")
@@ -104,13 +103,13 @@ class TSN(nn.Module):
             self.base_model = getattr(torchvision.models, base_model)(True if self.pretrain == 'imagenet' else False)
             if self.is_shift:
                 print('Adding temporal shift...')
-                from ops.temporal_shift import make_temporal_shift
+                from feature_extractors.ops.temporal_shift import make_temporal_shift
                 make_temporal_shift(self.base_model, self.num_segments,
                                     n_div=self.shift_div, place=self.shift_place, temporal_pool=self.temporal_pool)
 
             if self.non_local:
                 print('Adding non-local module...')
-                from ops.non_local import make_non_local
+                from feature_extractors.ops.non_local import make_non_local
                 make_non_local(self.base_model, self.num_segments)
 
             self.base_model.last_layer_name = 'fc'
@@ -138,7 +137,7 @@ class TSN(nn.Module):
 
             self.base_model.avgpool = nn.AdaptiveAvgPool2d(1)
             if self.is_shift:
-                from ops.temporal_shift import TemporalShift
+                from feature_extractors.ops.temporal_shift import TemporalShift
                 for m in self.base_model.modules():
                     if isinstance(m, InvertedResidual) and len(m.conv) == 8 and m.use_res_connect:
                         if self.print_spec:
@@ -268,9 +267,12 @@ class TSN(nn.Module):
                 sample_len = 3 * self.new_length
                 input = self._get_diff(input)
 
-            base_out = self.base_model(input.view((-1, sample_len) + input.size()[-2:]))
+            base_out, global_pool = self.base_model(input.view((-1, sample_len) + input.size()[-2:]))
         else:
-            base_out = self.base_model(input)
+            base_out, global_pool = self.base_model(input)
+            
+        if self.get_global_pool:
+            base_out = global_pool
 
         if self.dropout > 0:
             base_out = self.new_fc(base_out)
@@ -377,6 +379,10 @@ class TSN(nn.Module):
     @property
     def scale_size(self):
         return self.input_size * 256 // 224
+    
+    @property
+    def feature_size(self):
+        return self.base_model.fc.in_features
 
     def get_augmentation(self, flip=True):
         if self.modality == 'RGB':
@@ -392,3 +398,54 @@ class TSN(nn.Module):
         elif self.modality == 'RGBDiff':
             return torchvision.transforms.Compose([GroupMultiScaleCrop(self.input_size, [1, .875, .75]),
                                                    GroupRandomHorizontalFlip(is_flow=False)])
+        
+        
+def init_model(num_class, num_segments, modality, arch, consensus_type, dropout, img_feature_dim, no_partialbn, pretrain, is_shift, shift_div, shift_place, non_local, temporal_pool, resume_chkpt, gpus):
+    model = TSN(num_class, num_segments, modality, base_model=arch, consensus_type=consensus_type, dropout=dropout,
+                img_feature_dim=img_feature_dim, partial_bn=not no_partialbn, pretrain=pretrain,
+                is_shift=is_shift, shift_div=shift_div, shift_place=shift_place, non_local=non_local)
+    
+    crop_size = model.crop_size
+    scale_size = model.scale_size
+    input_mean = model.input_mean
+    input_std = model.input_std
+    policies = model.get_optim_policies()
+    
+    model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
+    
+    if temporal_pool:  # early temporal pool so that we can load the state_dict
+        make_temporal_pool(model.module.base_model, num_segments)
+    if os.path.isfile(resume_chkpt):
+        print(("=> loading checkpoint '{}'".format(resume_chkpt)))
+        checkpoint = torch.load(resume_chkpt)['state_dict']
+        print('=> loaded checkpoint')
+    else:
+        print(("=> no checkpoint found at '{}'".format(resume_chkpt)))
+            
+    model_dict = model.state_dict()
+    replace_dict = []
+    for k, v in checkpoint.items():
+        if k not in model_dict and k.replace('.net', '') in model_dict:
+            print('=> Load after remove .net: ', k)
+            replace_dict.append((k, k.replace('.net', '')))
+    for k, v in model_dict.items():
+        if k not in checkpoint and k.replace('.net', '') in checkpoint:
+            print('=> Load after adding .net: ', k)
+            replace_dict.append((k.replace('.net', ''), k))
+
+#     replace_dict.append(('module.new_fc.weight', None))
+#     replace_dict.append(('module.new_fc.bias', None))
+#     del checkpoint['module.new_fc.weight']
+#     del checkpoint['module.new_fc.bias']
+    
+    for k, k_new in replace_dict:
+        checkpoint[k_new] = checkpoint.pop(k)
+    keys1 = set(list(checkpoint.keys()))
+    keys2 = set(list(model_dict.keys()))
+    set_diff = (keys1 - keys2) | (keys2 - keys1)
+    print('#### Notice: keys that failed to load: {}'.format(set_diff))
+    
+    model_dict.update(checkpoint)
+    model.load_state_dict(model_dict)
+            
+    return model, crop_size, scale_size, input_mean, input_std
