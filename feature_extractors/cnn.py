@@ -5,6 +5,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from video_resnet import r2plus1d_18
 
 __author__ = "jssprz"
 __version__ = "0.0.1"
@@ -48,7 +49,7 @@ class CNN(nn.Module):
         elif extractor_name == 'resnext101-48d-wsl':
             self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x48d_wsl')
         elif extractor_name == 'r2plus1d_18':
-            self.extractor = torchvision.models.video.r2plus1d_18(pretrained=use_pretrained, progress=True)
+            self.extractor = r2plus1d_18(pretrained=use_pretrained, progress=True)
         else:
             raise ValueError('{} is not a correct extractor name'.format(extractor_name))
 
