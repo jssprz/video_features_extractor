@@ -52,15 +52,15 @@ class CNN(nn.Module):
         else:
             raise ValueError('{} is not a correct extractor name'.format(extractor_name))
 
+        self.__feature_size = self.extractor.fc.in_features
+            
         self.use_my_resnet = use_my_resnet
         if use_my_resnet:
             self.att_size = 14
             self.avg_pool = nn.AdaptiveAvgPool2d((self.att_size, self.att_size))
-            self.__feature_size = self.extractor.fc.in_features
         elif not get_probs:
             modules=list(self.extractor.children())[:-1]
             self.extractor = nn.Sequential(*modules)
-            self.__feature_size = self.extractor.fc.in_features
         else:
             self.__feature_size = self.extractor.fc.out_features
 
