@@ -13,7 +13,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from utils import get_freer_gpu
-from preprocess import resize_frame, preprocess_frame
+from preprocess import resize_frame, preprocess_frame, ToTensorWithoutScaling
 from sample_frames import sample_frames, sample_frames2
 from feature_extractors.cnn import CNN
 from feature_extractors.c3d import C3D
@@ -76,7 +76,7 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
 
     # Create an hdf5 file that saves video features
-    feature_h5_path = os.path.join(config.features_dir, 'temp_features_{}space_{}.h5'.format('lin' if config.frame_sample_rate == -1 else config.frame_sample_rate, config.max_frames))
+    feature_h5_path = os.path.join(config.features_dir, 'temp2_features_{}space_{}.h5'.format('lin' if config.frame_sample_rate == -1 else config.frame_sample_rate, config.max_frames))
     if os.path.exists(feature_h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.
@@ -133,6 +133,10 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
 
             # Extracting cnn features of sampled frames first
             features = extractor(frame_list)
+            print(features.size(), features.mean())
+        elif extractor_name == 'r2plus1d_18_sem_global':
+            frame_list = torch.cat([torch.from_numpy(nd_array(x)).unsqueeze(0) for x in frame_list], dim=0).to(device)
+            features = extractor(transformer(frame_list))
             print(features.size(), features.mean())
         elif extractor_name in ['c3d_features', 'i3d_features']:
             # Preprocess frames of the video fragments to extract motion features
@@ -222,9 +226,20 @@ for feats_name in feats_to_extract:
         model = CNN(config.cnn_model, input_size=224, use_pretrained=cnn_use_torch_weights, use_my_resnet=False)
         if not cnn_use_torch_weights:
             model.load_pretrained(config.cnn_pretrained_path)
-        transformer = transforms.Compose([transforms.Scale((model.crop_size, model.crop_size)),
+        transformer = transforms.Compose([transforms.Scale(model.scale_size),
+                                          transforms.CenterCrop(model.crop_size),
                                           transforms.ToTensor(),
                                           transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+        with torch.no_grad():
+            extract_features('cnn_features', model, args.dataset_name, device, config, model.feature_size, transformer)
+    if feats_name == 'r2plus1d_18_sem_global':
+        print('\nExtracting ResNet (2+1)D for {} dataset'.format(args.dataset_name))
+        model = CNN('r2plus1d_18_sem_global', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=True)
+        transformer = transforms.Compose([transforms.ToFloatTensorInZeroOne(),
+                                          transforms.Resize((128, 171)),
+                                          transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                               std=[0.22803, 0.22145, 0.216989]),
+                                          transforms.CenterCrop((112, 112))])
         with torch.no_grad():
             extract_features('cnn_features', model, args.dataset_name, device, config, model.feature_size, transformer)
     if feats_name in ['c3d_features', 'c3d_globals']:
@@ -233,8 +248,8 @@ for feats_name in feats_to_extract:
         model.load_pretrained(config.c3d_pretrained_path)
         transformer = transforms.Compose([transforms.Scale((200, 112)),
                                           transforms.CenterCrop(112),
-                                          transforms.ToTensor()])
-#                                           transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+                                          ToTensorWithoutScaling(),
+                                          transforms.Normalize(mean=model.input_mean, std=model.input_std)])
         with torch.no_grad():
             extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
     if feats_name in ['c3d_globals', 'i3d_globals']:

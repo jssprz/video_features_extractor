@@ -14,7 +14,7 @@ __status__ = "Development"
 
 
 class CNN(nn.Module):
-    def __init__(self, extractor_name, input_size=224, use_my_resnet=False, use_pretrained=False):
+    def __init__(self, extractor_name, input_size=224, use_my_resnet=False, use_pretrained=False, get_probs=False):
         super(CNN, self).__init__()
 
         self.__input_size = input_size
@@ -47,17 +47,22 @@ class CNN(nn.Module):
             self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x32d_wsl')
         elif extractor_name == 'resnext101-48d-wsl':
             self.extractor = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x48d_wsl')
+        elif extractor_name == 'r2plus1d_18':
+            self.extractor = torchvision.models.video.r2plus1d_18(pretrained=use_pretrained, progress=True)
         else:
             raise ValueError('{} is not a correct extractor name'.format(extractor_name))
 
-        self.__feature_size = self.extractor.fc.in_features
-
         self.use_my_resnet = use_my_resnet
         if use_my_resnet:
-            self.avg_pool = nn.AdaptiveAvgPool2d((14, 14))
-        else:
+            self.att_size = 14
+            self.avg_pool = nn.AdaptiveAvgPool2d((self.att_size, self.att_size))
+            self.__feature_size = self.extractor.fc.in_features
+        elif not get_probs:
             modules=list(self.extractor.children())[:-1]
             self.extractor = nn.Sequential(*modules)
+            self.__feature_size = self.extractor.fc.in_features
+        else:
+            self.__feature_size = self.extractor.fc.out_features
 
         # remove the last fully connected layer
         # self.extractor = nn.Sequential(*list(self.extractor.children())[:-1])
@@ -107,8 +112,8 @@ class CNN(nn.Module):
 #         x = torch.flatten(x, 1)
         return x
 
-    def my_forward(self, x, att_size=14):
-        x = x.unsqueeze(0)
+    def my_forward(self, x):
+#         x = x.unsqueeze(0)
 
         x = self.extractor.conv1(x)
         x = self.extractor.bn1(x)
@@ -119,9 +124,13 @@ class CNN(nn.Module):
         x = self.extractor.layer2(x)
         x = self.extractor.layer3(x)
         x = self.extractor.layer4(x)
+        print(x.size())
 
-        fc = x.mean(2).mean(2).squeeze()
-        att = self.avg_pool(x).squeeze().permute(1, 2, 0)
+        fc = x.mean(2).mean(2)
+        return fc
+#         att = self.avg_pool(x).view(-1, self.att_size, self.att_size).permute(1, 2, 0)
+        
+#         print(fc.size(), att.size())
 
         return fc, att
 

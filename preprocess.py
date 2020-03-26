@@ -6,6 +6,7 @@ from PIL import Image, ImageOps
 import skimage
 import numpy as np
 import cv2
+import torch
 import torchvision
 import torchvision.transforms as transforms
 
@@ -67,6 +68,11 @@ def crop_center(img, cropx, cropy):
     startx = x // 2 - (cropx // 2)
     starty = y // 2 - (cropy // 2)
     return img[starty:starty+cropy, startx:startx+cropx, :]
+
+class ToTensorWithoutScaling(object):
+    """H x W x C -> C x H x W"""
+    def __call__(self, picture):
+        return torch.from_numpy(np.array(picture)).float().permute(2, 0, 1)
 
 def preprocess_frame(image, scale_size=256, crop_size=224, mean=[.485, .456, .406], std=[.229, .224, .225], normalize_input=False):
     image = np.asarray(image)
