@@ -76,7 +76,7 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
 
     # Create an hdf5 file that saves video features
-    feature_h5_path = os.path.join(config.features_dir, 'temp2_features_{}space_{}.h5'.format('lin' if config.frame_sample_rate == -1 else config.frame_sample_rate, config.max_frames))
+    feature_h5_path = os.path.join(config.features_dir, 'temp3_features_{}space_{}.h5'.format('lin' if config.frame_sample_rate == -1 else config.frame_sample_rate, config.max_frames))
     if os.path.exists(feature_h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.
@@ -138,8 +138,8 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             # frame_list = torch.cat([torch.from_numpy(np.array(x)).unsqueeze(0) for x in frame_list], dim=0).to(device)
             frame_list = torch.cat([transformer(x).unsqueeze(0) for x in frame_list], dim=0).to(device)
             # features = extractor(transformer(frame_list))
-            features = extractor(frame_list)
-            print(features.size(), features.mean())
+            features = extractor(frame_list.transpose(0,1).unsqueeze(0))
+            print(features.size(), features.min(), features.max(), features.mean())
         elif extractor_name in ['c3d_features', 'i3d_features']:
             # Preprocess frames of the video fragments to extract motion features
 #             clip_list = np.array([[preprocess_frame(x, scale_size=extractor.scale_size, crop_size=extractor.crop_size,
