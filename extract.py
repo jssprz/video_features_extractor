@@ -13,7 +13,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 from utils import get_freer_gpu
-from preprocess import resize_frame, preprocess_frame, ToTensorWithoutScaling
+from preprocess import resize_frame, preprocess_frame, ToTensorWithoutScaling, ToFloatTensorInZeroOne
 from sample_frames import sample_frames, sample_frames2
 from feature_extractors.cnn import CNN
 from feature_extractors.c3d import C3D
@@ -134,9 +134,11 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             # Extracting cnn features of sampled frames first
             features = extractor(frame_list)
             print(features.size(), features.mean())
-        elif extractor_name == 'r2plus1d_18_sem_global':
-            frame_list = torch.cat([torch.from_numpy(nd_array(x)).unsqueeze(0) for x in frame_list], dim=0).to(device)
-            features = extractor(transformer(frame_list))
+        elif extractor_name == 'cnn_globals':
+            # frame_list = torch.cat([torch.from_numpy(np.array(x)).unsqueeze(0) for x in frame_list], dim=0).to(device)
+            frame_list = torch.cat([transformer(x).unsqueeze(0) for x in frame_list], dim=0).to(device)
+            # features = extractor(transformer(frame_list))
+            features = extractor(frame_list)
             print(features.size(), features.mean())
         elif extractor_name in ['c3d_features', 'i3d_features']:
             # Preprocess frames of the video fragments to extract motion features
@@ -217,7 +219,7 @@ if __name__ == '__main__':
         print('Running on cpu device')
     
 #     feats_to_extract = ['cnn_features', 'c3d_features', 'c3d_globals', 'i3d_features', 'i3d_globals', 'eco_features', 'eco_globals', 'eco_sem_features', 'eco_sem_globals', 'tsm_sem_features', 'tsm_sem_globals', 'tsm_features', 'tsm_globals']
-    feats_to_extract = ['cnn_features', 'c3d_features']
+    feats_to_extract = ['cnn_globals']
     
 for feats_name in feats_to_extract:
     if feats_name == 'cnn_features':
@@ -231,17 +233,18 @@ for feats_name in feats_to_extract:
                                           transforms.ToTensor(),
                                           transforms.Normalize(mean=model.input_mean, std=model.input_std)])
         with torch.no_grad():
-            extract_features('cnn_features', model, args.dataset_name, device, config, model.feature_size, transformer)
-    if feats_name == 'r2plus1d_18_sem_global':
+            extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+    if feats_name == 'cnn_globals':
         print('\nExtracting ResNet (2+1)D for {} dataset'.format(args.dataset_name))
-        model = CNN('r2plus1d_18_sem_global', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=True)
-        transformer = transforms.Compose([transforms.ToFloatTensorInZeroOne(),
-                                          transforms.Resize((128, 171)),
+        model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=True)
+        transformer = transforms.Compose([transforms.Resize((128, 171)),
+                                          transforms.CenterCrop((112, 112)),
+                                          transforms.ToTensor(),
                                           transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
                                                                std=[0.22803, 0.22145, 0.216989]),
-                                          transforms.CenterCrop((112, 112))])
+                                          ])
         with torch.no_grad():
-            extract_features('cnn_features', model, args.dataset_name, device, config, model.feature_size, transformer)
+            extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
     if feats_name in ['c3d_features', 'c3d_globals']:
         print('\nExtracting C3D for {} dataset'.format(args.dataset_name))
         model = C3D()

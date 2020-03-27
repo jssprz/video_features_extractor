@@ -74,6 +74,13 @@ class ToTensorWithoutScaling(object):
     def __call__(self, picture):
         return torch.from_numpy(np.array(picture)).float().permute(2, 0, 1)
 
+def to_normalized_float_tensor(vid):
+    return vid.permute(3, 0, 1, 2).to(torch.float32) / 255
+
+class ToFloatTensorInZeroOne(object):
+    def __call__(self, vid):
+        return to_normalized_float_tensor(vid)
+
 def preprocess_frame(image, scale_size=256, crop_size=224, mean=[.485, .456, .406], std=[.229, .224, .225], normalize_input=False):
     image = np.asarray(image)
     if normalize_input:
