@@ -6,6 +6,7 @@
 import os
 import argparse
 import h5py
+import time
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -196,140 +197,148 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
         map_file.close()
 
 
+def main(args, config):   
+  if torch.cuda.is_available():
+      freer_gpu_ids = get_freer_gpu()[0]
+      device = torch.device('cuda:{}'.format(freer_gpu_ids))
+      print('Running on freer device: cuda:{}'.format(freer_gpu_ids))
+  else:
+      device = torch.device('cpu')
+      print('Running on cpu device')
+     
+  for feats_name in args.features:
+      if feats_name == 'cnn_features':
+          print('Extracting CNN for {} dataset'.format(args.dataset_name))
+          cnn_use_torch_weights = (config.cnn_pretrained_path == '')
+          model = CNN(config.cnn_model, input_size=224, use_pretrained=cnn_use_torch_weights, use_my_resnet=False)
+          if not cnn_use_torch_weights:
+              model.load_pretrained(config.cnn_pretrained_path)
+          transformer = transforms.Compose([transforms.Scale(model.scale_size),
+                                            transforms.CenterCrop(model.crop_size),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+      if feats_name == 'cnn_globals':
+          print('Extracting ResNet (2+1)D for {} dataset'.format(args.dataset_name))
+          model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=True)
+          transformer = transforms.Compose([transforms.Resize((128, 171)),
+                                            transforms.CenterCrop((112, 112)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                                std=[0.22803, 0.22145, 0.216989]),
+                                            ])
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+      if feats_name in ['c3d_features', 'c3d_globals']:
+          print('Extracting C3D for {} dataset'.format(args.dataset_name))
+          model = C3D()
+          model.load_pretrained(config.c3d_pretrained_path)
+          transformer = transforms.Compose([transforms.Scale((200, 112)),
+                                            transforms.CenterCrop(112),
+                                            ToTensorWithoutScaling(),
+                                            transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+      if feats_name in ['c3d_globals', 'i3d_globals']:
+          print('Extracting I3D for {} dataset'.format(args.dataset_name))
+          model = I3D(modality='rgb')
+          model.load_state_dict(torch.load(config.i3d_pretrained_path))
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, feature_size=model.feature_size,
+                              crop_size=model.crop_size, scale_size=model.scale_size, input_mean=model.input_mean, 
+                              input_std=model.input_std)
+      if feats_name in ['eco_features', 'eco_globals']:
+          print('Extracting ECOfull for {} dataset'.format(args.dataset_name))
+          model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
+                                                                    pretrained_parts='finetune', #'2D', '3D',
+                                                                    modality='RGB', 
+                                                                    arch='ECOfull',  # 'ECOfull' 'ECO' 'C3DRes18'
+                                                                    consensus_type='identity', #'avg',
+                                                                    dropout=0, 
+                                                                    no_partialbn=True, #False, 
+                                                                    resume_chpt='',
+                                                                    get_global_pool=True,
+                                                                    gpus=[device])
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, 1536, crop_size, scale_size, input_mean, input_std)
+      if feats_name in ['eco_sem_features', 'eco_sem_globals']:
+          print('Extracting ECO-Smantic for {} dataset'.format(args.dataset_name))
+          model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
+                                                                    pretrained_parts='finetune', #'2D', '3D',
+                                                                    modality='RGB', 
+                                                                    arch='ECOfull',  # 'ECOfull' 'ECO' 'C3DRes18'
+                                                                    consensus_type='identity', #'avg',
+                                                                    dropout=.8, 
+                                                                    no_partialbn=True, #False, 
+                                                                    resume_chpt='',
+                                                                    get_global_pool=False,
+                                                                    gpus=[device])
+          with torch.no_grad():
+              extract_features('eco_sem_features', model, args.dataset_name, device, config, 400, crop_size, scale_size, input_mean,
+                              input_std)
+      if feats_name in ['tsm_features', 'tsm_globals']:
+          print('Extracting {} for {} dataset'.format(feats_name, args.dataset_name))
+          model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
+                                                                    modality='RGB', 
+                                                                    arch='resnet50',  # 'resnet101'
+                                                                    consensus_type='avg', # 'avg' 'identity'
+                                                                    dropout=0, 
+                                                                    img_feature_dim=256,
+                                                                    no_partialbn=True, #False,
+                                                                    pretrain='imagenet',
+                                                                    is_shift=True, 
+                                                                    shift_div=8, 
+                                                                    shift_place='blockers', 
+                                                                    non_local=False,
+                                                                    temporal_pool=False,
+                                                                    resume_chkpt='./models/Smth-Smth-v2-tsm/TSM_somethingv2_RGB_resnet50_shift8_blockres_avg_segment16_e45.pth',
+                                                                    get_global_pool=True,
+                                                                    gpus=[device])
+      if feats_name in ['tsm_sem_features', 'tsm_sem_globals']:
+          print('Extracting {} for {} dataset'.format(feats_name, args.dataset_name))
+          model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
+                                                                    modality='RGB', 
+                                                                    arch='resnet50',  # 'resnet101'
+                                                                    consensus_type='avg', # 'avg' 'identity'
+                                                                    dropout=.8, 
+                                                                    img_feature_dim=256,
+                                                                    no_partialbn=True, #False,
+                                                                    pretrain='imagenet',
+                                                                    is_shift=True, 
+                                                                    shift_div=8, 
+                                                                    shift_place='blockers', 
+                                                                    non_local=False,
+                                                                    temporal_pool=False,
+                                                                    resume_chkpt='./models/Smth-Smth-v2-tsm/TSM_somethingv2_RGB_resnet50_shift8_blockres_avg_segment16_e45.pth',
+                                                                    get_global_pool=False,
+                                                                    gpus=[device])
+          with torch.no_grad():
+              extract_features(feats_name, model, args.dataset_name, device, config, 174, crop_size, scale_size, input_mean, 
+                              input_std)
+              
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a captioning model for a specific dataset.')
-    parser.add_argument('-ds', '--dataset_name', type=str, default='MSR-VTT',
-                        help='the name of the dataset (default is MSVD).')
+    parser.add_argument('-ds', '--dataset_name', type=str, default='MSVD',
+                        help='Set The name of the dataset (default is MSVD).')
+    parser.add_argument('-f','--features', nargs='+', 
+                        help='<Required> Set the names of features to be extracted', required=True)
     parser.add_argument('-config', '--config_file', type=str, required=True,
-                        help='the path to the config file with all params')
+                        help='<Required> Set the path to the config file with other configuration params')
 
     args = parser.parse_args()
 
     assert args.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT', 'TRECVID']
+    for f_name in args.features:
+      assert f_name in ['cnn_features', 'c3d_features', 'c3d_globals', 'i3d_features', 'i3d_globals', 'eco_features', 'eco_globals', 'eco_sem_features', 'eco_sem_globals', 'tsm_sem_features', 'tsm_sem_globals', 'tsm_features', 'tsm_globals']
     
     config = ConfigurationFile(args.config_file, args.dataset_name)
-    
-    if torch.cuda.is_available():
-        freer_gpu_ids = get_freer_gpu()[0]
-        device = torch.device('cuda:{}'.format(freer_gpu_ids))
-        print('Running on freer device: cuda:{}'.format(freer_gpu_ids))
-    else:
-        device = torch.device('cpu')
-        print('Running on cpu device')
-    
-#     feats_to_extract = ['cnn_features', 'c3d_features', 'c3d_globals', 'i3d_features', 'i3d_globals', 'eco_features', 'eco_globals', 'eco_sem_features', 'eco_sem_globals', 'tsm_sem_features', 'tsm_sem_globals', 'tsm_features', 'tsm_globals']
-    feats_to_extract = ['cnn_globals']
-    
-for feats_name in feats_to_extract:
-    if feats_name == 'cnn_features':
-        print('\nExtracting CNN for {} dataset'.format(args.dataset_name))
-        cnn_use_torch_weights = (config.cnn_pretrained_path == '')
-        model = CNN(config.cnn_model, input_size=224, use_pretrained=cnn_use_torch_weights, use_my_resnet=False)
-        if not cnn_use_torch_weights:
-            model.load_pretrained(config.cnn_pretrained_path)
-        transformer = transforms.Compose([transforms.Scale(model.scale_size),
-                                          transforms.CenterCrop(model.crop_size),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize(mean=model.input_mean, std=model.input_std)])
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
-    if feats_name == 'cnn_globals':
-        print('\nExtracting ResNet (2+1)D for {} dataset'.format(args.dataset_name))
-        model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=True)
-        transformer = transforms.Compose([transforms.Resize((128, 171)),
-                                          transforms.CenterCrop((112, 112)),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
-                                                               std=[0.22803, 0.22145, 0.216989]),
-                                          ])
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
-    if feats_name in ['c3d_features', 'c3d_globals']:
-        print('\nExtracting C3D for {} dataset'.format(args.dataset_name))
-        model = C3D()
-        model.load_pretrained(config.c3d_pretrained_path)
-        transformer = transforms.Compose([transforms.Scale((200, 112)),
-                                          transforms.CenterCrop(112),
-                                          ToTensorWithoutScaling(),
-                                          transforms.Normalize(mean=model.input_mean, std=model.input_std)])
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
-    if feats_name in ['c3d_globals', 'i3d_globals']:
-        print('\nExtracting I3D for {} dataset'.format(args.dataset_name))
-        model = I3D(modality='rgb')
-        model.load_state_dict(torch.load(config.i3d_pretrained_path))
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, feature_size=model.feature_size,
-                             crop_size=model.crop_size, scale_size=model.scale_size, input_mean=model.input_mean, 
-                             input_std=model.input_std)
-    if feats_name in ['eco_features', 'eco_globals']:
-        print('\nExtracting ECOfull for {} dataset'.format(args.dataset_name))
-        model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
-                                                                  pretrained_parts='finetune', #'2D', '3D',
-                                                                  modality='RGB', 
-                                                                  arch='ECOfull',  # 'ECOfull' 'ECO' 'C3DRes18'
-                                                                  consensus_type='identity', #'avg',
-                                                                  dropout=0, 
-                                                                  no_partialbn=True, #False, 
-                                                                  resume_chpt='',
-                                                                  get_global_pool=True,
-                                                                  gpus=[device])
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, 1536, crop_size, scale_size, input_mean, input_std)
-    if feats_name in ['eco_sem_features', 'eco_sem_globals']:
-        print('\nExtracting ECO-Smantic for {} dataset'.format(args.dataset_name))
-        model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
-                                                                  pretrained_parts='finetune', #'2D', '3D',
-                                                                  modality='RGB', 
-                                                                  arch='ECOfull',  # 'ECOfull' 'ECO' 'C3DRes18'
-                                                                  consensus_type='identity', #'avg',
-                                                                  dropout=.8, 
-                                                                  no_partialbn=True, #False, 
-                                                                  resume_chpt='',
-                                                                  get_global_pool=False,
-                                                                  gpus=[device])
-        with torch.no_grad():
-            extract_features('eco_sem_features', model, args.dataset_name, device, config, 400, crop_size, scale_size, input_mean,
-                             input_std)
-    if feats_name in ['tsm_features', 'tsm_globals']:
-        print('\nExtracting {} for {} dataset'.format(feats_name, args.dataset_name))
-        model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
-                                                                  modality='RGB', 
-                                                                  arch='resnet50',  # 'resnet101'
-                                                                  consensus_type='avg', # 'avg' 'identity'
-                                                                  dropout=0, 
-                                                                  img_feature_dim=256,
-                                                                  no_partialbn=True, #False,
-                                                                  pretrain='imagenet',
-                                                                  is_shift=True, 
-                                                                  shift_div=8, 
-                                                                  shift_place='blockers', 
-                                                                  non_local=False,
-                                                                  temporal_pool=False,
-                                                                  resume_chkpt='./models/Smth-Smth-v2-tsm/TSM_somethingv2_RGB_resnet50_shift8_blockres_avg_segment16_e45.pth',
-                                                                  get_global_pool=True,
-                                                                  gpus=[device])
-    if feats_name in ['tsm_sem_features', 'tsm_sem_globals']:
-        print('\nExtracting {} for {} dataset'.format(feats_name, args.dataset_name))
-        model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
-                                                                  modality='RGB', 
-                                                                  arch='resnet50',  # 'resnet101'
-                                                                  consensus_type='avg', # 'avg' 'identity'
-                                                                  dropout=.8, 
-                                                                  img_feature_dim=256,
-                                                                  no_partialbn=True, #False,
-                                                                  pretrain='imagenet',
-                                                                  is_shift=True, 
-                                                                  shift_div=8, 
-                                                                  shift_place='blockers', 
-                                                                  non_local=False,
-                                                                  temporal_pool=False,
-                                                                  resume_chkpt='./models/Smth-Smth-v2-tsm/TSM_somethingv2_RGB_resnet50_shift8_blockres_avg_segment16_e45.pth',
-                                                                  get_global_pool=False,
-                                                                  gpus=[device])
-        with torch.no_grad():
-            extract_features(feats_name, model, args.dataset_name, device, config, 174, crop_size, scale_size, input_mean, 
-                             input_std)
-            
-        
+
+    while True:
+      try:
+        main(args, config)
+        print('Extraction of all features finished!!')
+      except:
+        time.sleep(5)
+        print('\ntrying again...')
