@@ -77,7 +77,7 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
 
     # Create an hdf5 file that saves video features
-    feature_h5_path = os.path.join(config.features_dir, 'temp3_features_{}space_{}.h5'.format('lin' if config.frame_sample_rate == -1 else config.frame_sample_rate, config.max_frames))
+    feature_h5_path = os.path.join(config.features_dir, 'temp3_features_linspace{}_{}.h5'.format(config.frame_sample_rate, config.max_frames))
     if os.path.exists(feature_h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.
@@ -90,14 +90,19 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
         dataset = h5[dataset_name]
         if extractor_name in list(dataset.keys()):
             dataset_model = dataset[extractor_name]
-        else:
+        elif extractor_name.split('_')[-1] == 'features':
             dataset_model = dataset.create_dataset(extractor_name, (config.num_videos, config.max_frames,
                                                                     feature_size), dtype='float32')
+        elif extractor_name.split('_')[-1] == 'globals': 
+            dataset_model = dataset.create_dataset(extractor_name, (config.num_videos, 1, feature_size), dtype='float32')
         dataset_counts = dataset['count_features']
     else:
         dataset = h5.create_group(dataset_name)
-        dataset_model = dataset.create_dataset(extractor_name, (config.num_videos, config.max_frames,
-                                                                feature_size), dtype='float32')
+        if extractor_name.split('_')[-1] == 'features':
+            dataset_model = dataset.create_dataset(extractor_name, (config.num_videos, config.max_frames,
+                                                                    feature_size), dtype='float32')
+        elif extractor_name.split('_')[-1] == 'globals':
+            dataset_model = dataset.create_dataset(extractor_name, (config.num_videos, 1, feature_size), dtype='float32')
         dataset_counts = dataset.create_dataset('count_features', (config.num_videos,), dtype='int')
                                    
     extractor.to(device)
@@ -187,8 +192,9 @@ def extract_features(extractor_name, extractor, dataset_name, device, config, fe
             if extractor_name in ['eco_sem_globals', 'tsm_sem_globals']:
                 probs = torch.softmax(features, dim=1)
                 print(probs.size(), probs.max(), probs.min())
-        feats_count = features.size(0)
-        dataset_model[i, :feats_count, :] = features.data.cpu().numpy()
+
+        if features.size(0) == feats_count
+            dataset_model[i, :feats_count, :] = features.data.cpu().numpy()
         dataset_counts[i] = feats_count
 
     h5.close()
@@ -340,5 +346,5 @@ if __name__ == '__main__':
         main(args, config)
         print('Extraction of all features finished!!')
       except:
-        time.sleep(5)
+        time.sleep(10)
         print('\ntrying again...')
