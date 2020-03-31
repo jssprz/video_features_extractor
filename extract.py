@@ -348,6 +348,7 @@ if __name__ == '__main__':
         try:
             main(args, config)
             print('Extraction of all features finished!!')
+            break
         except OSError:
             time.sleep(10)
             print('\ntrying again...')
