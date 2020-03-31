@@ -56,6 +56,7 @@ class CNN(nn.Module):
         self.__feature_size = self.extractor.fc.in_features
             
         self.use_my_resnet = use_my_resnet
+        self.get_probs = get_probs
         if use_my_resnet:
             self.att_size = 14
             self.avg_pool = nn.AdaptiveAvgPool2d((self.att_size, self.att_size))
@@ -99,6 +100,8 @@ class CNN(nn.Module):
     def original_forward(self, x):
         x = self.extractor(x)
         x = torch.flatten(x, 1)
+        if self.get_probs:
+            x = torch.softmax(x, dim=1)
 #         x = self.extractor.conv1(x)
 #         x = self.extractor.bn1(x)
 #         x = self.extractor.relu(x)
