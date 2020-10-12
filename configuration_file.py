@@ -21,10 +21,11 @@ class ConfigurationFile:
         self.__dataset_name = section['dataset_name']
         self.__data_dir = section['data_dir']
         self.__features_dir = section['features_dir']
-        self.__num_videos = int(section['num_videos'])
+        self.__num_videos = int(section['num_videos']) if 'num_videos' in section else None 
 
-        if 'mapping_path' in section:
-            self.__mapping_path = section['mapping_path']
+        self.__mapping_path = section['mapping_path'] if 'mapping_path' in section else None
+        self.__datainfo_path = section['datainfo_path'] if 'datainfo_path' in section else None
+        self.__test_vid_list_json = section['test_vid_list_json'] if 'test_vid_list_json' in section else None
 
         self.__cnn_model = section['cnn_model']
         self.__cnn_pretrained_path = section['cnn_pretrained_path']
@@ -32,7 +33,7 @@ class ConfigurationFile:
         self.__i3d_pretrained_path = section['i3d_pretrained_path']
         self.__tsm_pretrained_path = section['tsm_pretrained_path']
         self.__frame_sample_rate = int(section['frame_sample_rate'])
-        self.__frame_sample_overlap = int(section['frame_sample_overlap'])
+        self.__clip_size = int(section['clip_size'])
         self.__max_frames = int(section['max_frames'])
         
     @property
@@ -54,6 +55,14 @@ class ConfigurationFile:
     @property
     def mapping_path(self):
         return self.__mapping_path
+    
+    @property
+    def datainfo_path(self):
+        return self.__datainfo_path
+    
+    @property
+    def test_vid_list_json(self):
+        return self.__test_vid_list_json
     
     @property
     def cnn_model(self):
@@ -80,8 +89,8 @@ class ConfigurationFile:
         return self.__frame_sample_rate
 
     @property
-    def frame_sample_overlap(self):
-        return self.__frame_sample_overlap
+    def clip_size(self):
+        return self.__clip_size
 
     @property
     def max_frames(self):

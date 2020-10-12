@@ -8,8 +8,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-
-def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overlap):
+def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, clip_size, segment_secs=None, all_fragments=None):
     """Samples video frames reduces computational effort. Taking max_frames frames at equal intervals
     """
 
@@ -17,32 +16,84 @@ def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overla
 
     try:
         cap = cv2.VideoCapture(video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        
+        if segment_secs is not None:
+            start, end = tuple(segment_secs)
+            start_index = start * fps  # int(max(start - .5, 0) * fps)
+            stop_index = end * fps  # int(max(end - .5, 0) * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start_index)
+        else:
+            start_index = 0
+            stop_index = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_count = stop_index - start_index
     except Exception as e:
-        print('Can not open {} because {}'.format(video_path, e))
+        print('Cannot process {} because {}'.format(video_path, e))
         pass
     else:
-        frames = []
-        i = 0
-        while True:
+        frames, frames_ts, fragments_mask = [], [], []
+        index, calc_timestamp = start_index, 0
+        while index < stop_index:
             ret, frame = cap.read()
             if ret is not True:
                 break
+    
+            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+            if all_fragments is not None:
+                mark = 0
+                for f in all_fragments:
+                    start, end = tuple(f)
+                    if timestamp >= start and timestamp <= end:
+                        mark = 1
+                fragments_mask.append(mark)
+                
             # Convert the BGR image into an RGB image, because the later model uses the RGB format.
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
             frame = Image.fromarray(frame)
-#             if i % 2 == 0:
             frames.append(frame)
-            i += 1
+            frames_ts.append(timestamp)
+            index += 1
 
-#         frames = np.array(frames)
+        if not len(frames):
+            print('video-clip without frames in segment: {}, fragments: {}'.format(segment_secs, all_fragments))
+            return [], [], [], 0, []
         
-        frames_per_side = frame_sample_rate // 2
-        if frame_sample_rate * max_frames < len(frames):
-            indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
-        else:
-            indices = list(range(frames_per_side, len(frames) - frames_per_side, frame_sample_rate))
-        clip_list = [frames[i - frames_per_side: i + frames_per_side] for i in indices]
+        #assert len(frames), 'video-clip without frames in segment: {}, fragments: {}'.format(segment_secs, all_fragments)
+#         frames = np.array(frames)
+
+#         print(fragments_mask, all_fragments)
+        
+        if sample_type == 'dynamic':
+            frames_per_side = frame_sample_rate // 2
+            if frame_sample_rate * max_frames < len(frames):
+                indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
+            elif frame_sample_rate < len(frames):
+                indices = list(range(frames_per_side, len(frames) - frames_per_side, frame_sample_rate))
+            else:
+                indices = [len(frames)//2]
+        elif sample_type == 'fixed':
+            # sample max_frames frames always
+            indices = np.linspace(0, len(frames), max_frames, endpoint=False, dtype=int)
+        
+#         clip_list = [frames[max(i - clip_size//2, 0): i + clip_size//2, len(frames))] for i in indices]
+        
+        clip_list = []
+        for i in indices:
+            ss = max(i - clip_size//2, 0)
+            to = min(i + clip_size//2, len(frames))
+            
+            if ss == 0:
+                to = min(clip_size, len(frames))
+            elif to == len(frames):
+                ss = max(len(frames) - clip_size, 0)                 
+            
+            clip_list.append(frames[ss:to])
+
         frame_list = [frames[i] for i in indices]
+        frame_ts_list = [frames_ts[i] for i in indices]
+        if all_fragments is not None:
+            fragments_mask = [fragments_mask[i] for i in indices]
         
 #         if frame_sample_rate == -1:
 #             indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
@@ -63,7 +114,7 @@ def sample_frames(video_path, max_frames, frame_sample_rate, frame_sample_overla
 #         clip_list = np.array(clip_list)
 #         frame_list = frames[indices]
 #         frame_list = [frames[i] for i in indices]
-        return frame_list, clip_list, len(frames)
+        return frame_list, frame_ts_list, clip_list, len(frames), fragments_mask
     
 def sample_frames2(video_path, num_segments, segment_length):
     """Samples video frames reduces computational effort. Taking max_frames frames at equal intervals
