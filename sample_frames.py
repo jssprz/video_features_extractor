@@ -32,7 +32,7 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
         else:
             start_index = 0
             # stop_index = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            stop_index = int(reader.get_meta_data()['duration'] * fps)
+            stop_index = int(reader.get_meta_data()['duration'] * fps)-1
     except Exception as e:
         print('Cannot process {} because {}'.format(video_path, e))
         pass
@@ -45,7 +45,8 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
             # if ret is not True:
             #     break
     
-            timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+            # timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+            timestamp = index * fps
             if all_fragments is not None:
                 mark = 0
                 for f in all_fragments:
@@ -71,7 +72,9 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
 
         # print(fragments_mask, all_fragments)
         
+        # sample frames from video according to the sample_type parameter
         if sample_type == 'dynamic':
+            # the number of frames to be sampled depends on the video length
             frames_per_side = frame_sample_rate // 2
             if frame_sample_rate * max_frames < len(frames):
                 indices = np.linspace(frames_per_side, len(frames) - frames_per_side + 1, max_frames, endpoint=False, dtype=int)
@@ -82,7 +85,7 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
         elif sample_type == 'fixed':
             # sample max_frames frames always
             indices = np.linspace(0, len(frames), max_frames, endpoint=False, dtype=int)
-        
+
         # chunk_list = [frames[max(i - chunk_size//2, 0): i + chunk_size//2, len(frames))] for i in indices]
         
         chunk_list = []
