@@ -51,7 +51,7 @@ def parse_shift_option_from_log_name(log_name):
         return False, None, None
 
 
-def extract_features(extractor_name, extractor, dataset_name, split, device, config, feature_size, transformer):
+def extract_features(config, data_folder, extractor_name, extractor, dataset_name, split, device, feature_size, transformer):
     """
 
     :type c3d_extractor:
@@ -102,7 +102,7 @@ def extract_features(extractor_name, extractor, dataset_name, split, device, con
         videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir)) if v.rsplit('.', 1)[0] in test_vids]
         map_file = open(config.mapping_path, 'w')
     elif dataset_name == 'ActivityNet-Dense':
-        with open(os.path.join(config.videos_dir, f'{split}_list_for_extraction.txt')) as f:
+        with open(os.path.join(data_folder, f'{split}_list_for_extraction.txt')) as f:
             videos = [os.path.join(config.videos_dir, line.strip()[1:]+'.mp4') for line in f.readlines()]
     elif dataset_name == 'ActivityNet-Fragments':
         videos = []
@@ -321,7 +321,7 @@ def main(args, config):
 
     for feats_name in args.features:
         if feats_name == 'events_mask':
-            extract_features(feats_name, None, config.dataset_name, args.split, device, config, None, None)
+            extract_features(config, args.dataset_folder, feats_name, None, config.dataset_name, args.split, device, None, None)
         if feats_name == 'cnn_features':
             print('Extracting CNN for {} dataset'.format(config.dataset_name))
             cnn_use_torch_weights = (config.cnn_pretrained_path == None)
@@ -333,7 +333,7 @@ def main(args, config):
                                             transforms.ToTensor(),
                                             transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
         if feats_name in ['cnn_globals', 'cnn_sem_globals']:
             print('Extracting ResNet (2+1)D for {} dataset'.format(config.dataset_name))
             model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=feats_name=='cnn_sem_globals')
@@ -344,7 +344,7 @@ def main(args, config):
                                                                   std=[0.22803, 0.22145, 0.216989]),
                                               ])
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
         if feats_name in ['c3d_features', 'c3d_globals']:
             print('Extracting C3D for {} dataset'.format(config.dataset_name))
             model = C3D()
@@ -354,13 +354,13 @@ def main(args, config):
                                               ToTensorWithoutScaling(),
                                               transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
         if feats_name in ['c3d_globals', 'i3d_globals']:
             print('Extracting I3D for {} dataset'.format(config.dataset_name))
             model = I3D(modality='rgb')
             model.load_state_dict(torch.load(config.i3d_pretrained_path))
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, feature_size=model.feature_size,
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, feature_size=model.feature_size,
                               crop_size=model.crop_size, scale_size=model.scale_size, input_mean=model.input_mean, 
                               input_std=model.input_std)
         if feats_name in ['eco_features', 'eco_globals']:
@@ -380,7 +380,7 @@ def main(args, config):
                                             ToTensorWithoutScaling(),
                                             transforms.Normalize(mean=input_mean, std=input_std)])
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, 1536, transformer)
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, 1536, transformer)
         if feats_name in ['eco_sem_features', 'eco_sem_globals']:
             print('Extracting ECO-Smantic for {} dataset'.format(config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
@@ -394,7 +394,7 @@ def main(args, config):
                                                                     get_global_pool=False,
                                                                     gpus=[device])
             with torch.no_grad():
-                extract_features('eco_sem_features', model, config.dataset_name, args.split, device, config, 400, crop_size, scale_size,
+                extract_features(config, args.dataset_folder, 'eco_sem_features', model, config.dataset_name, args.split, device, 400, crop_size, scale_size,
                                  input_mean, input_std)
         if feats_name in ['tsm_features', 'tsm_globals']:
             print('Extracting {} for {} dataset'.format(feats_name, config.dataset_name))
@@ -433,7 +433,7 @@ def main(args, config):
                                                                     get_global_pool=False,
                                                                     gpus=[device])
             with torch.no_grad():
-                extract_features(feats_name, model, config.dataset_name, args.split, device, config, 174, crop_size, scale_size, input_mean, input_std)
+                extract_features(config, args.dataset_folder, feats_name, model, config.dataset_name, args.split, device, 174, crop_size, scale_size, input_mean, input_std)
 
 
 if __name__ == '__main__':
