@@ -117,3 +117,7 @@ results/
 
 # temporal file
 tmp
+
+# datasets files and pretrained models direcories
+data/
+pretrained/

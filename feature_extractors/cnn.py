@@ -5,7 +5,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from feature_extractors.video_resnet import r2plus1d_18
+# from feature_extractors.video_resnet import r2plus1d_18
 
 __author__ = "jssprz"
 __version__ = "0.0.1"

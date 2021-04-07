@@ -15,7 +15,8 @@ import torchvision
 import torchvision.transforms as transforms
 
 from utils import get_freer_gpu
-from preprocess import resize_frame, preprocess_frame, ToTensorWithoutScaling, ToFloatTensorInZeroOne
+from configuration_dict import ConfigDict
+from preprocess import preprocess_frame, ToTensorWithoutScaling
 from sample_frames import sample_frames, sample_frames2
 from feature_extractors.cnn import CNN
 from feature_extractors.c3d import C3D
@@ -38,6 +39,7 @@ def l2norm(X):
     X = torch.div(X, norm)
     return X
 
+
 def parse_shift_option_from_log_name(log_name):
     if 'shift' in log_name:
         strings = log_name.split('_')
@@ -48,7 +50,8 @@ def parse_shift_option_from_log_name(log_name):
     else:
         return False, None, None
 
-def extract_features(file_name, extractor_name, extractor, dataset_name, device, config, feature_size, transformer):
+
+def extract_features(extractor_name, extractor, dataset_name, split, device, config, feature_size, transformer):
     """
 
     :type c3d_extractor:
@@ -70,46 +73,49 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
 
     # Read the video list and let the videos sort by id in ascending order
     if dataset_name == 'MSVD':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir))]
         map_file = open(config.mapping_path, 'w')
     elif dataset_name == 'MSR-VTT':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[5:-4]))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir), key=lambda x: int(x[5:-4]))]
     elif dataset_name == 'M-VAD':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[5:-4]))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir), key=lambda x: int(x[5:-4]))]
     elif dataset_name == 'TRECVID-2020':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[6:x.index('.')]))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir), key=lambda x: int(x[6:x.index('.')]))]
     elif dataset_name == 'TRECVID-2020-Test':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[:x.index('.')]))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir), key=lambda x: int(x[:x.index('.')]))]
     elif dataset_name == 'TGIF':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir), key=lambda x: int(x[:-4]))]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir), key=lambda x: int(x[:-4]))]
     elif dataset_name == 'VATEX':
-        with open(os.path.join(config.data_dir, 'list.txt')) as f:
+        with open(os.path.join(config.videos_dir, 'list.txt')) as f:
             videos = []
             for line in f.readlines():
-                path = os.path.join(config.data_dir, line.strip()[1:])
+                path = os.path.join(config.videos_dir, line.strip()[1:])
                 ss = int(line.rsplit('.',1)[0].split('_')[-2])
                 to = int(line.rsplit('.',1)[0].split('_')[-1])
                 videos.append((path, (ss, to)))
     elif dataset_name == 'ActivityNet':
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir)) if v.rsplit('.', 1)[0] in datainfo]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir)) if v.rsplit('.', 1)[0] in datainfo]
         map_file = open(config.mapping_path, 'w')
     elif dataset_name == 'ActivityNet-Test':
         with open(config.test_vid_list_json) as f:
             test_vids = json.load(f)
-        videos = [os.path.join(config.data_dir, v) for v in sorted(os.listdir(config.data_dir)) if v.rsplit('.', 1)[0] in test_vids]
+        videos = [os.path.join(config.videos_dir, v) for v in sorted(os.listdir(config.videos_dir)) if v.rsplit('.', 1)[0] in test_vids]
         map_file = open(config.mapping_path, 'w')
+    elif dataset_name == 'ActivityNet-Dense':
+        with open(os.path.join(config.videos_dir, f'{split}_list_for_extraction.txt')) as f:
+            videos = [os.path.join(config.videos_dir, line.strip()[1:]+'.mp4') for line in f.readlines()]
     elif dataset_name == 'ActivityNet-Fragments':
         videos = []
-        for v in sorted(os.listdir(config.data_dir)):
-            v_path = os.path.join(config.data_dir, v)
+        for v in sorted(os.listdir(config.videos_dir)):
+            v_path = os.path.join(config.videos_dir, v)
             vid = v.rsplit('.', 1)[0]
             if vid in datainfo:
                 for i, ts in enumerate(datainfo[vid]['timestamps']):
                     videos.append((v_path, ts, i))
         map_file = open(config.mapping_path, 'w')         
-    elif os.path.exists(os.path.join(config.data_dir, 'list.txt')):
-        with open(os.path.join(config.data_dir, 'list.txt')) as f:
-            videos = [os.path.join(config.data_dir, path.strip()) for path in f.readlines()]
+    elif os.path.exists(os.path.join(config.videos_dir, 'list.txt')):
+        with open(os.path.join(config.videos_dir, 'list.txt')) as f:
+            videos = [os.path.join(config.videos_dir, path.strip()) for path in f.readlines()]
 
     # Create an hdf5 file that saves video features
     feature_h5_path = os.path.join(config.features_dir, file_name)
@@ -163,25 +169,26 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
         # Extract video frames and video tiles
         sample_type = 'fixed' if extractor_name == 'eco_globals' else 'dynamic'
         max_frames = 16 if extractor_name == 'eco_globals' else config.max_frames
-        frame_list, frame_ts_list, clip_list, frame_count, fragments_mask = sample_frames(sample_type, video_path, max_frames,
+        frame_list, frame_ts_list, chunk_list, frame_count, fragments_mask = sample_frames(sample_type, video_path, max_frames,
                                                                                           config.frame_sample_rate,
-                                                                                          config.clip_size, 
+                                                                                          config.chunk_size, 
                                                                                           segment_secs=fragment,
                                                                                           all_fragments=all_fragments)
-#         sampled_frames, frame_count = sample_frames2(video_path, num_segments=16, segment_length=1)
+        # sampled_frames, frame_count = sample_frames2(video_path, num_segments=16, segment_length=1)
         if frame_count == 0:
             print('The ', i,' video: ', video_path, ' was discarded because it does not have correct frames.')
             forget_idxs.append(i)
             if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF']:
                 i+=1
             continue
-        if frame_count < config.clip_size:
-            print('The ', i,' video: ', video_path, ' was discarded because it has less than ', config.clip_size, ' correct frames.')
+        if frame_count < config.chunk_size:
+            print('The ', i,' video: ', video_path, ' was discarded because it has less than ', config.chunk_size, ' correct frames.')
             forget_idxs.append(i)
             if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF']:
                 i+=1
             continue
 
+        # the video can be used, save it in the mapping file
         if dataset_name == 'MSVD':
             map_name_id = '{}\tvideo{}\n'.format(video_path.split('/')[-1].rsplit('.', 1)[0], i)
             map_file.write(map_name_id)
@@ -199,25 +206,27 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
             map_name_timestamp_idx = '{} \t {} \t {} \t {} \t {}\n'.format(video_path.split('/')[-1].rsplit('.', 1)[0], fragment[0], fragment[1], fragment_idx, i)
             map_file.write(map_name_timestamp_idx)
 
+        # logging
         if i % 50 == 0:
             if fragment is None:
                 print('%d\t%s\t%d' % (i, video_path.split('/')[-1], frame_count))
             else:
                 print('%d\t%s\t[%f,%f]\t%d' % (i, video_path.split('/')[-1], fragment[0], fragment[1], frame_count))
 
+        # extract feature from sampled frames
         if extractor_name == 'events_mask':    
             assert fragments_mask is not None, 'to compute the mask you must pass the list of fragments to the sample_frames method'
             features = torch.zeros(1, config.max_frames)
             features[0,:len(fragments_mask)] = torch.tensor(fragments_mask)
         elif extractor_name == 'cnn_features': 
             # Preprocess frames and then convert it into (batch, channel, height, width) format
-#             frame_list = np.array([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
-#                                                     mean=input_mean, std=input_std, normalize_input=True) 
-#                                    for x in frame_list])
-#             frame_list = torch.from_numpy(frame_list.transpose((0, 3, 1, 2))).to(device)
-#             frame_list = torch.cat([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
-#                                                     mean=input_mean, std=input_std, normalize_input=True).unsqueeze(0) 
-#                                    for x in frame_list], dim=0).to(device)
+            # frame_list = np.array([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
+            #                                         mean=input_mean, std=input_std, normalize_input=True) 
+            #                        for x in frame_list])
+            # frame_list = torch.from_numpy(frame_list.transpose((0, 3, 1, 2))).to(device)
+            # frame_list = torch.cat([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
+            #                                         mean=input_mean, std=input_std, normalize_input=True).unsqueeze(0) 
+            #                        for x in frame_list], dim=0).to(device)
             frame_list = torch.cat([transformer(x).unsqueeze(0) for x in frame_list], dim=0).to(device)
 
             # Extracting cnn features of sampled frames first
@@ -229,16 +238,16 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
             print(frame_list.size(), features.size(), features.min(), features.max(), features.mean())
         elif extractor_name in ['c3d_features', 'i3d_features']:
             # Preprocess frames of the video fragments to extract motion features
-#             clip_list = np.array([[preprocess_frame(x, scale_size=extractor.scale_size, crop_size=extractor.crop_size,
-#                                                     mean=extractor.input_mean, std=extractor.input_std) for x in clip] for clip in clip_list])
-#             clip_list = clip_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
-#             clip_list = torch.from_numpy(clip_list).to(device)
+            # chunk_list = np.array([[preprocess_frame(x, scale_size=extractor.scale_size, crop_size=extractor.crop_size,
+            #                                         mean=extractor.input_mean, std=extractor.input_std) for x in clip] for clip in chunk_list])
+            # chunk_list = chunk_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
+            # chunk_list = torch.from_numpy(chunk_list).to(device)
 
-            b, n, features = 70, len(clip_list), []
-            for c in clip_list:
-                assert config.clip_size == len(c), '{}!={}'.format(config.clip_size, len(c))
+            b, n, features = 70, len(chunk_list), []
+            for c in chunk_list:
+                assert config.chunk_size == len(c), '{}!={}'.format(config.chunk_size, len(c))
             for j in range(0, n, b):
-                clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in clip_list[j:min(j+b, n)]]
+                clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in chunk_list[j:min(j+b, n)]]
                 clips_batch = torch.cat(clips_batch, dim=0).transpose(1,2).to(device)
 
                 # Extracting c3d features
@@ -256,12 +265,12 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
             print(features.size(), features.mean())
         elif extractor_name in ['eco_features', 'tsm_features', 'eco_sem_features', 'tsm_sem_features']:
             features = []
-            for clip in clip_list:
-                clip_frames = torch.cat([torch.from_numpy(preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
+            for clip in chunk_list:
+                chunk_frames = torch.cat([torch.from_numpy(preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
                                                                           mean=input_mean, std=input_std))
                                          for x in clip], dim=2).transpose(0,2).unsqueeze(0).to(device)
                 # Extracting eco features from current clip
-                features.append(extractor(clip_frames))
+                features.append(extractor(chunk_frames))
             features = torch.cat(features, dim=0)
             if extractor_name in ['eco_sem_features', 'tsm_sem_features']:
                 probs = torch.softmax(features, dim=1)
@@ -299,7 +308,7 @@ def extract_features(file_name, extractor_name, extractor, dataset_name, device,
 
 def main(args, config):   
     if torch.cuda.is_available():
-        gpu_id = get_freer_gpu()[0]
+        gpu_id = 0 #get_freer_gpu()[0]
         device = torch.device('cuda:{}'.format(gpu_id))
         torch.cuda.set_device('cuda:{}'.format(gpu_id))
         print(f'Torch current device: cuda:{torch.cuda.current_device()}')
@@ -308,14 +317,14 @@ def main(args, config):
         device = torch.device('cpu')
         print('Running on cpu device')
     
-    file_name = '{}_features_linspace{}_{}-{}.h5'.format(config.dataset_name.lower(), config.frame_sample_rate, config.max_frames, '-'.join(args.features))
+    file_name = '{}_feats_linspace{}_{}-{}.h5'.format(args.split.lower(), config.frame_sample_rate, config.max_frames, '-'.join(args.features))
 
     for feats_name in args.features:
         if feats_name == 'events_mask':
-            extract_features(file_name, feats_name, None, args.dataset_name, device, config, None, None)
+            extract_features(feats_name, None, config.dataset_name, args.split, device, config, None, None)
         if feats_name == 'cnn_features':
-            print('Extracting CNN for {} dataset'.format(args.dataset_name))
-            cnn_use_torch_weights = (config.cnn_pretrained_path == '')
+            print('Extracting CNN for {} dataset'.format(config.dataset_name))
+            cnn_use_torch_weights = (config.cnn_pretrained_path == None)
             model = CNN(config.cnn_model, input_size=224, use_pretrained=cnn_use_torch_weights, use_my_resnet=False)
             if not cnn_use_torch_weights:
                 model.load_pretrained(config.cnn_pretrained_path)
@@ -324,38 +333,38 @@ def main(args, config):
                                             transforms.ToTensor(),
                                             transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
         if feats_name in ['cnn_globals', 'cnn_sem_globals']:
-            print('Extracting ResNet (2+1)D for {} dataset'.format(args.dataset_name))
+            print('Extracting ResNet (2+1)D for {} dataset'.format(config.dataset_name))
             model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=feats_name=='cnn_sem_globals')
             transformer = transforms.Compose([transforms.Resize((128, 171)),
-                                            transforms.CenterCrop((112, 112)),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
-                                                                std=[0.22803, 0.22145, 0.216989]),
-                                            ])
+                                              transforms.CenterCrop((112, 112)),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                                  std=[0.22803, 0.22145, 0.216989]),
+                                              ])
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
         if feats_name in ['c3d_features', 'c3d_globals']:
-            print('Extracting C3D for {} dataset'.format(args.dataset_name))
+            print('Extracting C3D for {} dataset'.format(config.dataset_name))
             model = C3D()
             model.load_pretrained(config.c3d_pretrained_path)
             transformer = transforms.Compose([transforms.Scale((200, 112)),
-                                            transforms.CenterCrop(112),
-                                            ToTensorWithoutScaling(),
-                                            transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+                                              transforms.CenterCrop(112),
+                                              ToTensorWithoutScaling(),
+                                              transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, model.feature_size, transformer)
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, model.feature_size, transformer)
         if feats_name in ['c3d_globals', 'i3d_globals']:
-            print('Extracting I3D for {} dataset'.format(args.dataset_name))
+            print('Extracting I3D for {} dataset'.format(config.dataset_name))
             model = I3D(modality='rgb')
             model.load_state_dict(torch.load(config.i3d_pretrained_path))
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, feature_size=model.feature_size,
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, feature_size=model.feature_size,
                               crop_size=model.crop_size, scale_size=model.scale_size, input_mean=model.input_mean, 
                               input_std=model.input_std)
         if feats_name in ['eco_features', 'eco_globals']:
-            print('Extracting ECOfull for {} dataset'.format(args.dataset_name))
+            print('Extracting ECOfull for {} dataset'.format(config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=16, 
                                                                     pretrained_parts='finetune', #'2D', '3D',
                                                                     modality='RGB', 
@@ -371,9 +380,9 @@ def main(args, config):
                                             ToTensorWithoutScaling(),
                                             transforms.Normalize(mean=input_mean, std=input_std)])
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, 1536, transformer)
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, 1536, transformer)
         if feats_name in ['eco_sem_features', 'eco_sem_globals']:
-            print('Extracting ECO-Smantic for {} dataset'.format(args.dataset_name))
+            print('Extracting ECO-Smantic for {} dataset'.format(config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = ECO(num_class=400, num_segments=config.frame_sample_rate, 
                                                                     pretrained_parts='finetune', #'2D', '3D',
                                                                     modality='RGB', 
@@ -385,10 +394,10 @@ def main(args, config):
                                                                     get_global_pool=False,
                                                                     gpus=[device])
             with torch.no_grad():
-                extract_features(file_name, 'eco_sem_features', model, args.dataset_name, device, config, 400, crop_size, scale_size,
+                extract_features('eco_sem_features', model, config.dataset_name, args.split, device, config, 400, crop_size, scale_size,
                                  input_mean, input_std)
         if feats_name in ['tsm_features', 'tsm_globals']:
-            print('Extracting {} for {} dataset'.format(feats_name, args.dataset_name))
+            print('Extracting {} for {} dataset'.format(feats_name, config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
                                                                     modality='RGB', 
                                                                     arch='resnet50',  # 'resnet101'
@@ -406,7 +415,7 @@ def main(args, config):
                                                                     get_global_pool=True,
                                                                     gpus=[device])
         if feats_name in ['tsm_sem_features', 'tsm_sem_globals']:
-            print('Extracting {} for {} dataset'.format(feats_name, args.dataset_name))
+            print('Extracting {} for {} dataset'.format(feats_name, config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
                                                                     modality='RGB', 
                                                                     arch='resnet50',  # 'resnet101'
@@ -424,25 +433,32 @@ def main(args, config):
                                                                     get_global_pool=False,
                                                                     gpus=[device])
             with torch.no_grad():
-                extract_features(file_name, feats_name, model, args.dataset_name, device, config, 174, crop_size, scale_size, input_mean, input_std)
+                extract_features(feats_name, model, config.dataset_name, args.split, device, config, 174, crop_size, scale_size, input_mean, input_std)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a captioning model for a specific dataset.')
-    parser.add_argument('-ds', '--dataset_name', type=str, default='MSVD',
-                        help='Set The name of the dataset (default is MSVD).')
+    parser.add_argument('-data', '--dataset_folder', type=str, default='./data/MSVD',
+                        help='Set the name of the dataset (default is ./data/MSVD).')
+    parser.add_argument('-s', '--split', type=str, default='train',
+                        help='Set the name of the split (default is train).')
     parser.add_argument('-f','--features', nargs='+', 
                         help='<Required> Set the names of features to be extracted', required=True)
-    parser.add_argument('-config', '--config_file', type=str, required=True,
-                        help='<Required> Set the path to the config file with other configuration params')
+    # parser.add_argument('-config', '--config_file', type=str, required=True,
+    #                     help='<Required> Set the path to the config file with other configuration params')
 
     args = parser.parse_args()
 
-    assert args.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT', 'TRECVID-2020', 'TRECVID-2020-Test', 'TGIF', 'VATEX', 'ActivityNet', 'ActivityNet-Test', 'ActivityNet-Fragments']
+    # config = ConfigurationFile(args.config_file, config.dataset_name)
+    config_path = os.path.join(args.dataset_folder, 'config.json')
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    config = ConfigDict(config['extractor_config'])
+
+    assert args.split in ['train', 'valid', 'val_1', 'val_2', 'test']
     for f_name in args.features:
       assert f_name in ['events_mask', 'cnn_features', 'cnn_globals', 'cnn_sem_globals', 'c3d_features', 'c3d_globals', 'i3d_features', 'i3d_globals', 'eco_features', 'eco_globals', 'eco_sem_features', 'eco_sem_globals', 'tsm_sem_features', 'tsm_sem_globals', 'tsm_features', 'tsm_globals']
-    
-    config = ConfigurationFile(args.config_file, args.dataset_name)
+    assert config.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT', 'TRECVID-2020', 'TRECVID-2020-Test', 'TGIF', 'VATEX', 'ActivityNet', 'ActivityNet-Test', 'ActivityNet-Dense', 'ActivityNet-Fragments']
 
 #     while True:
 #         try:
