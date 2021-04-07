@@ -32,18 +32,22 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
         else:
             start_index = 0
             # stop_index = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            stop_index = int(reader.get_meta_data()['duration'] * fps)-1
+            stop_index = int(reader.get_meta_data()['duration'] * fps)
     except Exception as e:
-        print('Cannot process {} because {}'.format(video_path, e))
+        print(f'Cannot process {video_path} because {e}')
         pass
     else:
         frames, frames_ts, fragments_mask = [], [], []
         index = start_index
         while index < stop_index:
             # ret, frame = cap.read()
-            frame = reader.get_next_data()
             # if ret is not True:
             #     break
+            try:
+                frame = reader.get_next_data()
+            except Exception as e:
+                print(f'Cannot read at index {index}\{stop_index} because {e}')
+                break
     
             # timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
             timestamp = index * fps
