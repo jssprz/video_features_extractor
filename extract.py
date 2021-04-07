@@ -117,7 +117,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         with open(os.path.join(config.videos_dir, 'list.txt')) as f:
             videos = [os.path.join(config.videos_dir, path.strip()) for path in f.readlines()]
 
-    # Create an hdf5 file that saves video features
+    # Create an hdf5 file for saving the video features
     if os.path.exists(h5_path):
         # If the hdf5 file already exists, it has been processed before,
         # perhaps it has not been completely processed.
@@ -126,6 +126,8 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
     else:
         h5 = h5py.File(h5_path, 'w')
 
+    # Initialize the dataset in the hdf5 file
+    print('initializing the dataset in the h5 file')
     if dataset_name in list(h5.keys()):
         dataset = h5[dataset_name]
         if extractor_name in list(dataset.keys()):
@@ -149,10 +151,12 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         dataset_f_ts = dataset.create_dataset('frames_tstamp', (len(videos), config.max_frames), dtype='float32')
         dataset_counts = dataset.create_dataset('count_features', (len(videos),), dtype='int')
 
+    print('move model to device')
     if extractor is not None:
         extractor.to(device)
         extractor.eval()
    
+    print('process each video')
     i, forget_idxs = 0, []
     for video_path in videos:
         fragment, all_fragments = None, None
