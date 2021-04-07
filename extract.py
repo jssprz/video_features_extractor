@@ -156,11 +156,9 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         freer_gpu_id = get_freer_gpu()
         device = torch.device('cuda:{}'.format(freer_gpu_id))
         torch.cuda.empty_cache()
-        logger.info('Running on cuda:{} device'.format(freer_gpu_id))
         print('Running on cuda:{} device'.format(freer_gpu_id))
     else:
         device = torch.device('cpu')
-        logger.info('Running on cpu device')
         print('Running on cpu device')
     
     # move the extractor model to device
