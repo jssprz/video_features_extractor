@@ -103,7 +103,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         map_file = open(config.mapping_path, 'w')
     elif dataset_name == 'ActivityNet-Dense':
         with open(os.path.join(data_folder, f'{split}_list_for_extraction.txt')) as f:
-            videos = [os.path.join(config.videos_dir, line.strip()[1:]+'.mp4') for line in f.readlines()]
+            videos = [os.path.join(config.videos_dir, line.strip()+'.mp4') for line in f.readlines()]
     elif dataset_name == 'ActivityNet-Fragments':
         videos = []
         for v in sorted(os.listdir(config.videos_dir)):
