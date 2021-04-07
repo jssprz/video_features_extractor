@@ -51,7 +51,7 @@ def parse_shift_option_from_log_name(log_name):
         return False, None, None
 
 
-def extract_features(config, data_folder, h5_path, extractor_name, extractor, dataset_name, split, device, feature_size, transformer):
+def extract_features(config, data_folder, h5_path, extractor_name, extractor, dataset_name, split, device, feature_size, transformer, logging=10):
     """
 
     :type c3d_extractor:
@@ -206,7 +206,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
             map_file.write(map_name_timestamp_idx)
 
         # logging
-        if i % 50 == 0:
+        if i % logging == 0:
             if fragment is None:
                 print('%d\t%s\t%d' % (i, video_path.split('/')[-1], frame_count))
             else:
@@ -321,7 +321,7 @@ def main(args, config):
 
     for feats_name in args.features:
         if feats_name == 'events_mask':
-            extract_features(config, args.dataset_folder, h5_path, feats_name, None, config.dataset_name, args.split, device, None, None)
+            extract_features(config, args.dataset_folder, h5_path, feats_name, None, config.dataset_name, args.split, device, None, None, args.logging)
         if feats_name == 'cnn_features':
             print('Extracting CNN for {} dataset'.format(config.dataset_name))
             cnn_use_torch_weights = (config.cnn_pretrained_path == None)
@@ -333,7 +333,7 @@ def main(args, config):
                                             transforms.ToTensor(),
                                             transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer, args.logging)
         if feats_name in ['cnn_globals', 'cnn_sem_globals']:
             print('Extracting ResNet (2+1)D for {} dataset'.format(config.dataset_name))
             model = CNN('r2plus1d_18', input_size=112, use_pretrained=True, use_my_resnet=False, get_probs=feats_name=='cnn_sem_globals')
@@ -344,7 +344,7 @@ def main(args, config):
                                                                   std=[0.22803, 0.22145, 0.216989]),
                                               ])
             with torch.no_grad():
-                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer, args.logging)
         if feats_name in ['c3d_features', 'c3d_globals']:
             print('Extracting C3D for {} dataset'.format(config.dataset_name))
             model = C3D()
@@ -354,7 +354,7 @@ def main(args, config):
                                               ToTensorWithoutScaling(),
                                               transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
-                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer)
+                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, model.feature_size, transformer, args.logging)
         if feats_name in ['c3d_globals', 'i3d_globals']:
             print('Extracting I3D for {} dataset'.format(config.dataset_name))
             model = I3D(modality='rgb')
@@ -378,7 +378,8 @@ def main(args, config):
             transformer = transforms.Compose([transforms.Scale((scale_size, scale_size)),
                                             transforms.CenterCrop(crop_size),
                                             ToTensorWithoutScaling(),
-                                            transforms.Normalize(mean=input_mean, std=input_std)])
+                                            transforms.Normalize(mean=input_mean, std=input_std)],
+                                            args.logging)
             with torch.no_grad():
                 extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, 1536, transformer)
         if feats_name in ['eco_sem_features', 'eco_sem_globals']:
@@ -395,7 +396,7 @@ def main(args, config):
                                                                     gpus=[device])
             with torch.no_grad():
                 extract_features(config, args.dataset_folder, h5_path, 'eco_sem_features', model, config.dataset_name, args.split, device, 400, crop_size, scale_size,
-                                 input_mean, input_std)
+                                 input_mean, input_std, args.logging)
         if feats_name in ['tsm_features', 'tsm_globals']:
             print('Extracting {} for {} dataset'.format(feats_name, config.dataset_name))
             model, crop_size, scale_size, input_mean, input_std = TSM(num_class=174, num_segments=config.frame_sample_rate, 
@@ -433,7 +434,7 @@ def main(args, config):
                                                                     get_global_pool=False,
                                                                     gpus=[device])
             with torch.no_grad():
-                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, 174, crop_size, scale_size, input_mean, input_std)
+                extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, device, 174, crop_size, scale_size, input_mean, input_std, args.logging)
 
 
 if __name__ == '__main__':
@@ -442,6 +443,8 @@ if __name__ == '__main__':
                         help='Set the name of the dataset (default is ./data/MSVD).')
     parser.add_argument('-s', '--split', type=str, default='train',
                         help='Set the name of the split (default is train).')
+    parser.add_argument('-log', '--logging', type=int, default=10,
+                        help='Set the number of steps between logging (default is 10).')
     parser.add_argument('-f','--features', nargs='+', 
                         help='<Required> Set the names of features to be extracted', required=True)
     # parser.add_argument('-config', '--config_file', type=str, required=True,
