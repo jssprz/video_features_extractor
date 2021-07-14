@@ -18,7 +18,8 @@ from utils import get_freer_gpu
 from configuration_dict import ConfigDict
 from preprocess import preprocess_frame, ToTensorWithoutScaling
 from sample_frames import sample_frames, sample_frames2
-from feature_extractors.cnn import CNN
+from feature_extractors.cnn2d import CNN2D
+from feature_extractors.cnn3d import CNN3D
 from feature_extractors.c3d import C3D
 from feature_extractors.i3dpt import I3D
 from feature_extractors.eco import init_model as ECO
@@ -26,7 +27,7 @@ from feature_extractors.tsm import init_model as TSM
 from configuration_file import ConfigurationFile
 
 __author__ = "jssprz"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __maintainer__ = "jssprz"
 __email__ = "jperezmartin90@gmail.com"
 __status__ = "Development"
@@ -153,7 +154,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
 
     # get torch device
     if config.device == 'gpu' and torch.cuda.is_available():
-        freer_gpu_id = get_freer_gpu()
+        freer_gpu_id = 0#get_freer_gpu()
         device = torch.device('cuda:{}'.format(freer_gpu_id))
         torch.cuda.empty_cache()
         print('Running on cuda:{} device'.format(freer_gpu_id))
@@ -167,7 +168,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         extractor.to(device)
         extractor.eval()
 
-    # extract features for each video
+    # extract features from each video
     print('Processing each video...')
     i, forget_idxs = 0, []
     for video_path in videos:
@@ -191,9 +192,9 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
                                                                                           all_fragments=all_fragments)
         # sampled_frames, frame_count = sample_frames2(video_path, num_segments=16, segment_length=1)
         if frame_count == 0:
-            print('The ', i,' video: ', video_path, ' was discarded because it does not have correct frames.')
+            print('The ', i,' video: ', video_path, ' was discarded because it doesn\'t have any correct frame.')
             forget_idxs.append(i)
-            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF']:
+            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF', 'ActivityNet-Dense']:
                 i+=1
             continue
         if frame_count < config.chunk_size:
@@ -224,7 +225,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         # logging
         if i % logging == 0:
             if fragment is None:
-                print('%d\t%s\t%d' % (i, video_path.split('/')[-1], frame_count))
+                print('%d\t%s\ttotal frames: %d\tsampled frames/chunks: %d' % (i, video_path.split('/')[-1], frame_count, len(frame_list)))
             else:
                 print('%d\t%s\t[%f,%f]\t%d' % (i, video_path.split('/')[-1], fragment[0], fragment[1], frame_count))
 
@@ -242,7 +243,8 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
             # frame_list = torch.cat([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
             #                                         mean=input_mean, std=input_std, normalize_input=True).unsqueeze(0) 
             #                        for x in frame_list], dim=0).to(device)
-            frame_list = torch.cat([transformer(x).unsqueeze(0) for x in frame_list], dim=0).to(device)
+            frame_list = torch.stack([transformer(x) for x in frame_list]).to(device)
+            print('stacked')
 
             # Extracting cnn features of sampled frames first
             features = extractor(frame_list)
@@ -261,11 +263,20 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
             b, n, features = 70, len(chunk_list), []
             for c in chunk_list:
                 assert config.chunk_size == len(c), '{}!={}'.format(config.chunk_size, len(c))
-            for j in range(0, n, b):
-                clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in chunk_list[j:min(j+b, n)]]
-                clips_batch = torch.cat(clips_batch, dim=0).transpose(1,2).to(device)
 
-                # Extracting c3d features
+            totensor = transforms.ToTensor()
+            for j in range(0, n, b):
+                # v3, calling transformer for each chunk instead each img (transformer not need a ToTensor)
+                clips_batch = torch.stack([transformer(torch.stack([totensor(im) for im in c])) for c in chunk_list[j:min(j+b, n)]]).transpose(1,2).to(device)
+                
+                # v2, using stack instead of cat+unsqueeze
+                # clips_batch = torch.stack([torch.stack([transformer(x) for x in c]) for c in chunk_list[j:min(j+b, n)]]).transpose(1,2).to(device)
+                
+                # v1, the transformer perform de conversion from PIL to tensor, but it is called per img
+                # clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in chunk_list[j:min(j+b, n)]]
+                # clips_batch = torch.cat(clips_batch, dim=0).transpose(1,2).to(device)
+
+                # Extracting features from batch
                 features.append(extractor(clips_batch))
             features = torch.cat(features, dim=0)
             print(features.size(), features.mean())
@@ -311,7 +322,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         else:
             dataset_model[i] = features.data.cpu().numpy()
             
-        i+=1
+        i += 1
 
     h5.close()
 
@@ -321,7 +332,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         map_file.close()
 
 
-def main(args, config):    
+def main(args, config):
     file_name = '{}_feats_linspace{}_{}-{}.h5'.format(args.split.lower(), config.frame_sample_rate, config.max_frames, '-'.join(args.features))
     h5_path = os.path.join(config.features_dir, file_name)
 
@@ -335,9 +346,9 @@ def main(args, config):
             if not cnn_use_torch_weights:
                 model.load_pretrained(config.cnn_pretrained_path)
             transformer = transforms.Compose([transforms.Scale(model.scale_size),
-                                            transforms.CenterCrop(model.crop_size),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize(mean=model.input_mean, std=model.input_std)])
+                                              transforms.CenterCrop(model.crop_size),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
                 extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, model.feature_size, transformer, args.logging)
         if feats_name in ['cnn_globals', 'cnn_sem_globals']:
@@ -355,9 +366,9 @@ def main(args, config):
             print('Extracting C3D for {} dataset'.format(config.dataset_name))
             model = C3D()
             model.load_pretrained(config.c3d_pretrained_path)
-            transformer = transforms.Compose([transforms.Scale((200, 112)),
+            transformer = transforms.Compose([transforms.Resize((200, 112)),
                                               transforms.CenterCrop(112),
-                                              ToTensorWithoutScaling(),
+                                            #   ToTensorWithoutScaling(),
                                               transforms.Normalize(mean=model.input_mean, std=model.input_std)])
             with torch.no_grad():
                 extract_features(config, args.dataset_folder, h5_path, feats_name, model, config.dataset_name, args.split, model.feature_size, transformer, args.logging)
@@ -469,11 +480,11 @@ if __name__ == '__main__':
       assert f_name in ['events_mask', 'cnn_features', 'cnn_globals', 'cnn_sem_globals', 'c3d_features', 'c3d_globals', 'i3d_features', 'i3d_globals', 'eco_features', 'eco_globals', 'eco_sem_features', 'eco_sem_globals', 'tsm_sem_features', 'tsm_sem_globals', 'tsm_features', 'tsm_globals']
     assert config.dataset_name in ['MSVD', 'M-VAD', 'MSR-VTT', 'TRECVID-2020', 'TRECVID-2020-Test', 'TGIF', 'VATEX', 'ActivityNet', 'ActivityNet-Test', 'ActivityNet-Dense', 'ActivityNet-Fragments']
 
-#     while True:
-#         try:
+    # while True:
+    #     try:
     main(args, config)
     print('Extraction of all features finished!!')
-#             break
-#         except OSError:
-#             time.sleep(10)
-#             print('\ntrying again...')
+        #     break
+        # except OSError:
+        #     time.sleep(10)
+        #     print('\ntrying again...')

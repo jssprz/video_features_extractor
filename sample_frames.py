@@ -46,11 +46,11 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
             try:
                 frame = reader.get_next_data()
             except Exception as e:
-                print(f'Cannot read at index {index}\{stop_index} because {e}')
+                print(f'Cannot read at index {index} \ {stop_index} because {e}')
                 break
     
             # timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
-            timestamp = index * fps
+            timestamp = index / fps
             if all_fragments is not None:
                 mark = 0
                 for f in all_fragments:
@@ -66,6 +66,8 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
             frames.append(frame)
             frames_ts.append(timestamp)
             index += 1
+
+        reader.close()
 
         if not len(frames):
             print('video-clip without frames in segment: {}, fragments: {}'.format(segment_secs, all_fragments))
