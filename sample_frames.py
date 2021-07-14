@@ -33,6 +33,9 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
             start_index = 0
             # stop_index = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             stop_index = int(reader.get_meta_data()['duration'] * fps)
+            if stop_index - start_index > 11000:
+                print('too long', stop_index - start_index)
+                stop_index = start_index
     except Exception as e:
         print(f'Cannot process {video_path} because {e}')
         pass
@@ -50,7 +53,7 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
                 break
     
             # timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
-            timestamp = index * fps
+            timestamp = index / fps
             if all_fragments is not None:
                 mark = 0
                 for f in all_fragments:
@@ -66,6 +69,8 @@ def sample_frames(sample_type, video_path, max_frames, frame_sample_rate, chunk_
             frames.append(frame)
             frames_ts.append(timestamp)
             index += 1
+
+        reader.close()
 
         if not len(frames):
             print('video-clip without frames in segment: {}, fragments: {}'.format(segment_secs, all_fragments))

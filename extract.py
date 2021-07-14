@@ -153,7 +153,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
 
     # get torch device
     if config.device == 'gpu' and torch.cuda.is_available():
-        freer_gpu_id = get_freer_gpu()
+        freer_gpu_id = 0  # get_freer_gpu()
         device = torch.device('cuda:{}'.format(freer_gpu_id))
         torch.cuda.empty_cache()
         print('Running on cuda:{} device'.format(freer_gpu_id))
@@ -170,7 +170,13 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
     # extract features for each video
     print('Processing each video...')
     i, forget_idxs = 0, []
-    for video_path in videos:
+    # idxs = [47, 80, 132, 146, 165, 195, 347, 420, 545, 579, 607, 635, 689, 720, 749, 774, 793, 813, 996, 1101, 1109, 1139, 1259, 1429, 1696, 1752, 1766, 1781, 1797, 1844, 1898, 2019, 2049, 2163, 2198, 2213, 2215, 2381, 2404, 2427, 2447, 2547, 2612, 2727, 2768, 2823, 2923, 2953, 3088, 3158, 3214, 3234, 3256, 3312, 3343, 3353, 3401, 3504, 3623, 3766, 3887, 4011, 4154, 4240, 4264, 4306]
+    # idxs = [2404, 2953, 3401]
+    # idxs = [2205, 2259, 2269, 2312, 2330, 2362, 2365, 2438, 2453, 2475, 2586, 2598, 2640, 2647, 2657, 2684, 2729, 2740, 2745, 2749, 2752, 2758, 2771, 2791, 2795, 2836, 2842, 2844, 2847, 2854, 2862, 2877, 2883, 2894, 2907, 2923, 2943, 2959, 3004, 3040, 3066, 3076, 3135, 3153, 3216, 3219, 3239, 3247, 3253, 3256, 3282, 3287, 3323, 3325, 3361, 3459, 3502, 3552, 3568, 3656, 3674, 3681, 3732, 3858, 3881, 3891, 3902, 3934, 3942, 3953, 3954, 3998, 4078, 4093, 4095, 4108, 4124, 4155, 4220, 4302, 4317, 4328, 4329, 4387, 4399, 4408, 4428, 4467, 4487, 4517, 4550, 4566, 4572, 4594, 4610, 4637, 4667, 4696, 4721, 4723, 4730, 4749, 4766, 4806, 4808, 4829, 4844, 4892, 4901, 4951, 4954, 4984, 4987, 4992, 4993, 5033, 5037, 5061, 5078, 5132, 5137, 5183, 5186, 5187, 5207, 5242, 5252, 5262, 5263, 5335, 5342, 5344, 5359, 5385, 5394, 5407, 5409, 5449, 5470, 5568, 5605, 5616, 5630, 5637, 5641, 5681]
+    # idxs = [47, 80, 132, 146, 165, 195, 347, 420, 545, 579, 607, 635, 689, 720, 749, 774, 793, 813, 996, 1101, 1109, 1139, 1259, 1429, 1696, 1752, 1766, 1781, 1797, 1844, 1898, 2019, 2049, 2163, 2198, 2213, 2215, 2381, 2404, 2427, 2447] + list(range(2466, 4454))
+    idxs = list(range(3506, 4454))
+    for i in idxs:
+        video_path = videos[i]
         fragment, all_fragments = None, None
         if dataset_name == 'ActivityNet':
             vid = video_path.split('/')[-1].rsplit('.', 1)[0]
@@ -193,13 +199,13 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
         if frame_count == 0:
             print('The ', i,' video: ', video_path, ' was discarded because it does not have correct frames.')
             forget_idxs.append(i)
-            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF']:
+            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF', 'ActivityNet-Dense']:
                 i+=1
             continue
         if frame_count < config.chunk_size:
             print('The ', i,' video: ', video_path, ' was discarded because it has less than ', config.chunk_size, ' correct frames.')
             forget_idxs.append(i)
-            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF']:
+            if dataset_name in ['TRECVID-2020', 'VATEX', 'TGIF', 'ActivityNet-Dense']:
                 i+=1
             continue
 
@@ -246,7 +252,8 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
 
             # Extracting cnn features of sampled frames first
             features = extractor(frame_list)
-            print(extractor_name, i, features.size(), features.mean())
+            # print(extractor_name, i, features.size(), features.mean())
+            print(features.size())
         elif extractor_name in ['cnn_globals', 'cnn_sem_globals']:
             frame_list = torch.cat([transformer(x).unsqueeze(0) for x in frame_list], dim=0).to(device)
             features = extractor(frame_list.transpose(0,1).unsqueeze(0))
@@ -258,17 +265,22 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
             # chunk_list = chunk_list.transpose((0, 4, 1, 2, 3)).astype(np.float32)
             # chunk_list = torch.from_numpy(chunk_list).to(device)
 
-            b, n, features = 70, len(chunk_list), []
-            for c in chunk_list:
-                assert config.chunk_size == len(c), '{}!={}'.format(config.chunk_size, len(c))
+            b, n, features = 100, len(chunk_list), []
+#            for c in chunk_list:
+#                assert config.chunk_size == len(c), '{}!={}'.format(config.chunk_size, len(c))
+
+#            totensor = ToTensorWithoutScaling()
             for j in range(0, n, b):
-                clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in chunk_list[j:min(j+b, n)]]
-                clips_batch = torch.cat(clips_batch, dim=0).transpose(1,2).to(device)
+#                clips_batch = torch.stack([transformer(torch.stack([totensor(im) for im in c])) for c in chunk_list[j:min(j+b, n)]]).transpose(1,2).to(device)
+                clips_batch = torch.stack([torch.stack([transformer(x) for x in c]) for c in chunk_list[j:min(j+b, n)]]).transpose(1,2).to(device)
+#                clips_batch = [torch.cat([transformer(x).unsqueeze(0) for x in c], dim=0).unsqueeze(0) for c in chunk_list[j:min(j+b, n)]]
+#                clips_batch = torch.cat(clips_batch, dim=0).transpose(1,2).to(device)
 
                 # Extracting c3d features
                 features.append(extractor(clips_batch))
             features = torch.cat(features, dim=0)
-            print(features.size(), features.mean())
+#            print(features.size(), features.mean())
+            print(features.size())
         elif extractor_name in ['c3d_globals', 'i3d_globals']:
             # Preprocess frames of the video fragments to extract motion features
             frames = np.array([preprocess_frame(x, scale_size=scale_size, crop_size=crop_size,
@@ -323,6 +335,7 @@ def extract_features(config, data_folder, h5_path, extractor_name, extractor, da
 
 def main(args, config):    
     file_name = '{}_feats_linspace{}_{}-{}.h5'.format(args.split.lower(), config.frame_sample_rate, config.max_frames, '-'.join(args.features))
+    # file_name = '{}_feats_linspace{}_{}-cnn_features-c3d_features.h5'.format(args.split.lower(), config.frame_sample_rate, config.max_frames)
     h5_path = os.path.join(config.features_dir, file_name)
 
     for feats_name in args.features:
@@ -355,7 +368,7 @@ def main(args, config):
             print('Extracting C3D for {} dataset'.format(config.dataset_name))
             model = C3D()
             model.load_pretrained(config.c3d_pretrained_path)
-            transformer = transforms.Compose([transforms.Scale((200, 112)),
+            transformer = transforms.Compose([transforms.Resize((200, 112)),
                                               transforms.CenterCrop(112),
                                               ToTensorWithoutScaling(),
                                               transforms.Normalize(mean=model.input_mean, std=model.input_std)])
