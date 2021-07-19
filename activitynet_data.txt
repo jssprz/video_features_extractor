@@ -1,0 +1,3 @@
+https://s06.imfd.cl/04/github-data/DenseCap/ActivityNet/train_list_for_extraction.txt
+https://s06.imfd.cl/04/github-data/DenseCap/ActivityNet/val_1_list_for_extraction.txt
+https://s06.imfd.cl/04/github-data/DenseCap/ActivityNet/val_2_list_for_extraction.txt
